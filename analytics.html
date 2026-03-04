@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShieldPay — Analytics</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding: 32px 48px 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+  .kpi-card:nth-child(2) { animation-delay: 0.10s; }
+  .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+  .kpi-card:nth-child(4) { animation-delay: 0.20s; }
+
+  .kpi-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 0; height: 2px;
+    background: var(--accent);
+    transition: width 0.4s;
+  }
+  .kpi-card:hover::after { width: 100%; }
+
+  .kpi-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }
+  .kpi-value { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+  .kpi-delta { font-size: 11px; margin-top: 6px; display: flex; align-items: center; gap: 5px; }
+  .kpi-icon {
+    position: absolute;
+    top: 16px; right: 20px;
+    font-size: 28px;
+    opacity: 0.12;
+  }
+
+  /* CHART ROWS */
+  .chart-row {
+    display: grid;
+    gap: 16px;
+    padding: 32px 48px 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .chart-row-2 { grid-template-columns: 2fr 1fr; }
+  .chart-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .chart-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    animation: fadeUp 0.5s ease both;
+    transition: border-color 0.2s;
+  }
+
+  .chart-panel:hover { border-color: rgba(0,200,150,0.2); }
+
+  .chart-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .chart-subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  /* LINE CHART (SVG) */
+  .svg-chart {
+    width: 100%;
+    height: 160px;
+    overflow: visible;
+  }
+
+  .chart-path-normal {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px rgba(0,200,150,0.5));
+  }
+
+  .chart-path-fraud {
+    fill: none;
+    stroke: var(--danger);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px rgba(255,59,92,0.5));
+  }
+
+  .chart-area-normal {
+    fill: url(#areaGrad);
+    opacity: 0.4;
+  }
+
+  .chart-grid-line {
+    stroke: rgba(255,255,255,0.04);
+    stroke-width: 1;
+  }
+
+  .chart-axis-label {
+    fill: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+  }
+
+  /* DONUT */
+  .donut-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 0;
+  }
+
+  .donut-center {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--accent);
+    text-align: center;
+    margin-top: -8px;
+  }
+
+  .donut-legend {
+    width: 100%;
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  .legend-name { display: flex; align-items: center; color: var(--muted); }
+  .legend-pct { color: var(--text); }
+
+  /* HEATMAP */
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: 40px repeat(24, 1fr);
+    gap: 2px;
+    margin-top: 8px;
+  }
+
+  .hm-day-label {
+    font-size: 9px;
+    color: var(--muted);
+    text-align: right;
+    padding-right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .hm-cell {
+    height: 16px;
+    border-radius: 1px;
+    transition: filter 0.15s;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .hm-cell:hover { filter: brightness(1.5); }
+
+  .hm-cell.l0 { background: rgba(0,200,150,0.05); }
+  .hm-cell.l1 { background: rgba(0,200,150,0.15); }
+  .hm-cell.l2 { background: rgba(0,200,150,0.30); }
+  .hm-cell.l3 { background: rgba(255,184,0,0.40); }
+  .hm-cell.l4 { background: rgba(255,59,92,0.60); }
+
+  .hm-header {
+    font-size: 8px;
+    color: var(--muted);
+    text-align: center;
+    padding-bottom: 4px;
+  }
+
+  .hm-labels-row {
+    display: grid;
+    grid-template-columns: 40px repeat(24, 1fr);
+    gap: 2px;
+    margin-bottom: 4px;
+  }
+
+  /* GEO MAP */
+  .geo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .geo-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    padding: 8px 4px;
+  }
+
+  .geo-item:hover { background: rgba(0,200,150,0.02); }
+  .geo-item:last-child { border: none; }
+
+  .geo-rank {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    width: 16px;
+    flex-shrink: 0;
+    text-align: center;
+  }
+
+  .geo-flag { font-size: 18px; }
+
+  .geo-info { flex: 1; }
+  .geo-name { color: var(--text); font-size: 12px; }
+  .geo-sub { color: var(--muted); font-size: 10px; }
+
+  .geo-bar-wrap { width: 80px; }
+  .geo-bar { height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+  .geo-bar-fill { height: 100%; border-radius: 2px; }
+  .geo-bar-fill.safe { background: var(--accent); }
+  .geo-bar-fill.risky { background: var(--danger); }
+
+  .geo-count { font-size: 11px; color: var(--text); width: 32px; text-align: right; }
+
+  /* TREND TABLE */
+  .trend-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 8px;
+  }
+
+  .trend-table th {
+    text-align: left;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .trend-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    vertical-align: middle;
+  }
+
+  .trend-table tr:last-child td { border: none; }
+  .trend-table tr:hover td { background: rgba(0,200,150,0.02); }
+
+  .sparkline {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 20px;
+  }
+
+  .sp-bar {
+    width: 4px;
+    background: var(--accent);
+    border-radius: 1px;
+    opacity: 0.6;
+  }
+
+  .sp-bar.high { background: var(--danger); opacity: 0.8; }
+
+  /* TABS */
+  .tab-row {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -1px;
+  }
+
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="fraud-detection.html" class="logo">
+    <div class="logo-icon"></div>
+    ShieldPay
+  </a>
+  <ul class="nav-links">
+    <li><a href="fraud-detection.html">Dashboard</a></li>
+    <li><a href="transactions.html">Transactions</a></li>
+    <li><a href="analytics.html" class="active">Analytics</a></li>
+    <li><a href="rules.html">Rules</a></li>
+    <li><a href="#" style="color:var(--muted)">Alerts</a></li>
+  </ul>
+  <a href="#" class="nav-cta">↓ Report</a>
+</nav>
+
+<main>
+
+  <div class="page-header fade-up">
+    <div class="page-header-left">
+      <div class="page-crumb">
+        <a href="fraud-detection.html">Home</a> › <span>Analytics</span>
+      </div>
+      <div class="page-title">Analytics</div>
+      <div class="page-subtitle">Deep-dive into fraud patterns, model performance, and risk trends over time.</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <select class="filter-select" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:10px 28px 10px 14px;font-family:'DM Mono',monospace;font-size:12px;outline:none;cursor:pointer;appearance:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22%3E%3Cpath d=%22M0 0l5 6 5-6z%22 fill=%22%235a7a6e%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 10px center">
+        <option>Last 30 Days</option>
+        <option>Last 7 Days</option>
+        <option>Last 90 Days</option>
+        <option>Custom Range</option>
+      </select>
+      <button class="btn-outline">Compare Period</button>
+      <button class="btn-primary">↓ Export PDF</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="analytics-grid">
+    <div class="kpi-card">
+      <span class="kpi-icon">🛡</span>
+      <div class="kpi-label">Detection Rate</div>
+      <div class="kpi-value" style="color:var(--accent)">99.7%</div>
+      <div class="kpi-delta delta-up">↑ 0.3% vs last month</div>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-icon">💸</span>
+      <div class="kpi-label">Fraud Value Blocked</div>
+      <div class="kpi-value">$4.2M</div>
+      <div class="kpi-delta delta-up">↑ 12% vs last month</div>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-icon">⚡</span>
+      <div class="kpi-label">Avg Decision Time</div>
+      <div class="kpi-value" style="color:var(--accent2)">42ms</div>
+      <div class="kpi-delta delta-up">↓ 8ms faster</div>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-icon">❌</span>
+      <div class="kpi-label">False Positive Rate</div>
+      <div class="kpi-value" style="color:var(--warn)">0.28%</div>
+      <div class="kpi-delta delta-dn">↑ 0.04% — needs tuning</div>
+    </div>
+  </div>
+
+  <!-- MAIN CHART + DONUT -->
+  <div class="chart-row chart-row-2" style="padding-top:24px">
+
+    <div class="chart-panel fade-up-1">
+      <div class="chart-title">Transaction Volume & Fraud Rate</div>
+      <div class="chart-subtitle">Daily totals over the past 30 days — normal vs flagged transactions</div>
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="setTab(this)">Volume</button>
+        <button class="tab-btn" onclick="setTab(this)">Fraud Rate</button>
+        <button class="tab-btn" onclick="setTab(this)">Amount</button>
+      </div>
+      <svg class="svg-chart" viewBox="0 0 600 160" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00c896" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#00c896" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- grid lines -->
+        <line x1="0" y1="40" x2="600" y2="40" class="chart-grid-line"/>
+        <line x1="0" y1="80" x2="600" y2="80" class="chart-grid-line"/>
+        <line x1="0" y1="120" x2="600" y2="120" class="chart-grid-line"/>
+
+        <!-- area fill -->
+        <path class="chart-area-normal" d="M0,100 C20,95 40,85 60,90 C80,95 100,80 120,70 C140,60 160,75 180,65 C200,55 220,50 240,58 C260,66 280,45 300,40 C320,35 340,50 360,42 C380,34 400,55 420,48 C440,41 460,35 480,30 C500,25 520,38 540,32 C560,26 580,40 600,35 L600,160 L0,160 Z"/>
+
+        <!-- normal line -->
+        <path class="chart-path-normal" d="M0,100 C20,95 40,85 60,90 C80,95 100,80 120,70 C140,60 160,75 180,65 C200,55 220,50 240,58 C260,66 280,45 300,40 C320,35 340,50 360,42 C380,34 400,55 420,48 C440,41 460,35 480,30 C500,25 520,38 540,32 C560,26 580,40 600,35"/>
+
+        <!-- fraud line -->
+        <path class="chart-path-fraud" d="M0,148 C20,147 40,149 60,145 C80,141 100,148 120,143 C140,138 160,149 180,142 C200,135 220,148 240,130 C260,140 280,148 300,138 C320,148 340,132 360,148 C380,138 400,149 420,142 C440,148 460,135 480,148 C500,140 520,148 540,143 C560,149 580,145 600,148"/>
+
+        <!-- axis labels -->
+        <text class="chart-axis-label" x="0" y="155">Feb 1</text>
+        <text class="chart-axis-label" x="140" y="155">Feb 8</text>
+        <text class="chart-axis-label" x="290" y="155">Feb 15</text>
+        <text class="chart-axis-label" x="440" y="155">Feb 22</text>
+        <text class="chart-axis-label" x="575" y="155">Today</text>
+
+        <text class="chart-axis-label" x="2" y="42">HIGH</text>
+        <text class="chart-axis-label" x="2" y="82">MED</text>
+        <text class="chart-axis-label" x="2" y="122">LOW</text>
+      </svg>
+      <div style="display:flex;gap:20px;font-size:11px;margin-top:8px">
+        <span style="color:var(--accent)">■ Normal Transactions</span>
+        <span style="color:var(--danger)">■ Fraud Attempts</span>
+      </div>
+    </div>
+
+    <div class="chart-panel fade-up-2">
+      <div class="chart-title">Fraud by Type</div>
+      <div class="chart-subtitle">Distribution of blocked attempts this month</div>
+      <div class="donut-wrap">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <!-- bg ring -->
+          <circle cx="70" cy="70" r="52" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="20"/>
+          <!-- segments (stroke-dasharray = circumference 326.7) -->
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#ff3b5c" stroke-width="20"
+            stroke-dasharray="130 196.7" stroke-dashoffset="0" transform="rotate(-90 70 70)"
+            filter="drop-shadow(0 0 8px rgba(255,59,92,0.5))"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#ffb800" stroke-width="20"
+            stroke-dasharray="81 245.7" stroke-dashoffset="-130" transform="rotate(-90 70 70)"
+            filter="drop-shadow(0 0 8px rgba(255,184,0,0.4))"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#00a8ff" stroke-width="20"
+            stroke-dasharray="49 277.7" stroke-dashoffset="-211" transform="rotate(-90 70 70)"/>
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#6e40c9" stroke-width="20"
+            stroke-dasharray="66 260.7" stroke-dashoffset="-260" transform="rotate(-90 70 70)"/>
+        </svg>
+        <div class="donut-center" style="margin-top:8px">247<br><span style="font-size:12px;font-family:'DM Mono';font-weight:400;color:var(--muted)">blocked</span></div>
+      </div>
+      <div class="donut-legend">
+        <div class="legend-item"><div class="legend-name"><div class="legend-dot" style="background:#ff3b5c"></div>Geo Mismatch</div><span class="legend-pct">40%</span></div>
+        <div class="legend-item"><div class="legend-name"><div class="legend-dot" style="background:#ffb800"></div>Velocity Breach</div><span class="legend-pct">25%</span></div>
+        <div class="legend-item"><div class="legend-name"><div class="legend-dot" style="background:#00a8ff"></div>Device Spoof</div><span class="legend-pct">15%</span></div>
+        <div class="legend-item"><div class="legend-name"><div class="legend-dot" style="background:#6e40c9"></div>Account Takeover</div><span class="legend-pct">20%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HEATMAP + GEO -->
+  <div class="chart-row chart-row-2" style="padding-top:16px">
+
+    <div class="chart-panel fade-up-3">
+      <div class="chart-title">Fraud Frequency Heatmap</div>
+      <div class="chart-subtitle">Hour of day × Day of week — darker = more fraud attempts</div>
+      <div class="hm-labels-row">
+        <div></div>
+        <div class="hm-header">0</div><div class="hm-header">1</div><div class="hm-header">2</div><div class="hm-header">3</div>
+        <div class="hm-header">4</div><div class="hm-header">5</div><div class="hm-header">6</div><div class="hm-header">7</div>
+        <div class="hm-header">8</div><div class="hm-header">9</div><div class="hm-header">10</div><div class="hm-header">11</div>
+        <div class="hm-header">12</div><div class="hm-header">13</div><div class="hm-header">14</div><div class="hm-header">15</div>
+        <div class="hm-header">16</div><div class="hm-header">17</div><div class="hm-header">18</div><div class="hm-header">19</div>
+        <div class="hm-header">20</div><div class="hm-header">21</div><div class="hm-header">22</div><div class="hm-header">23</div>
+      </div>
+      <div class="heatmap-grid" id="heatmap"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:10px;color:var(--muted)">
+        <span>Less</span>
+        <div style="width:12px;height:10px;background:rgba(0,200,150,0.05);border-radius:1px"></div>
+        <div style="width:12px;height:10px;background:rgba(0,200,150,0.15);border-radius:1px"></div>
+        <div style="width:12px;height:10px;background:rgba(0,200,150,0.30);border-radius:1px"></div>
+        <div style="width:12px;height:10px;background:rgba(255,184,0,0.40);border-radius:1px"></div>
+        <div style="width:12px;height:10px;background:rgba(255,59,92,0.60);border-radius:1px"></div>
+        <span>More</span>
+      </div>
+    </div>
+
+    <div class="chart-panel fade-up-4">
+      <div class="chart-title">Top Fraud Origin Countries</div>
+      <div class="chart-subtitle">Countries by fraud attempt volume this month</div>
+      <div class="geo-list">
+        <div class="geo-item">
+          <span class="geo-rank">#1</span>
+          <span class="geo-flag">🇳🇬</span>
+          <div class="geo-info"><div class="geo-name">Nigeria</div><div class="geo-sub">Wire Transfers, ATM</div></div>
+          <div class="geo-bar-wrap"><div class="geo-bar"><div class="geo-bar-fill risky" style="width:100%"></div></div></div>
+          <span class="geo-count" style="color:var(--danger)">82</span>
+        </div>
+        <div class="geo-item">
+          <span class="geo-rank">#2</span>
+          <span class="geo-flag">🇷🇺</span>
+          <div class="geo-info"><div class="geo-name">Russia</div><div class="geo-sub">Travel, E-commerce</div></div>
+          <div class="geo-bar-wrap"><div class="geo-bar"><div class="geo-bar-fill risky" style="width:75%"></div></div></div>
+          <span class="geo-count" style="color:var(--danger)">61</span>
+        </div>
+        <div class="geo-item">
+          <span class="geo-rank">#3</span>
+          <span class="geo-flag">🇷🇴</span>
+          <div class="geo-info"><div class="geo-name">Romania</div><div class="geo-sub">Card Skimming</div></div>
+          <div class="geo-bar-wrap"><div class="geo-bar"><div class="geo-bar-fill risky" style="width:55%"></div></div></div>
+          <span class="geo-count" style="color:var(--warn)">45</span>
+        </div>
+        <div class="geo-item">
+          <span class="geo-rank">#4</span>
+          <span class="geo-flag">🇧🇷</span>
+          <div class="geo-info"><div class="geo-name">Brazil</div><div class="geo-sub">Account Takeover</div></div>
+          <div class="geo-bar-wrap"><div class="geo-bar"><div class="geo-bar-fill risky" style="width:40%"></div></div></div>
+          <span class="geo-count" style="color:var(--warn)">33</span>
+        </div>
+        <div class="geo-item">
+          <span class="geo-rank">#5</span>
+          <span class="geo-flag">🇨🇳</span>
+          <div class="geo-info"><div class="geo-name">China</div><div class="geo-sub">Device Spoofing</div></div>
+          <div class="geo-bar-wrap"><div class="geo-bar"><div class="geo-bar-fill risky" style="width:30%"></div></div></div>
+          <span class="geo-count" style="color:var(--warn)">26</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODEL PERFORMANCE TABLE -->
+  <div class="chart-row" style="grid-template-columns:1fr;padding-bottom:48px">
+    <div class="chart-panel fade-up-5">
+      <div class="chart-title">Model Performance by Category</div>
+      <div class="chart-subtitle">Precision, recall, and F1 scores across fraud vectors — last 30 days</div>
+      <table class="trend-table">
+        <thead>
+          <tr>
+            <th>Fraud Category</th>
+            <th>Attempts</th>
+            <th>Detected</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1 Score</th>
+            <th>Trend (7d)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="color:var(--text)">Geo Mismatch</span></td>
+            <td style="color:var(--muted)">98</td>
+            <td style="color:var(--accent)">97</td>
+            <td><span style="color:var(--accent)">99.1%</span></td>
+            <td><span style="color:var(--accent)">99.0%</span></td>
+            <td><span style="font-family:'Syne',sans-serif;font-weight:700;color:var(--accent)">99.0</span></td>
+            <td><div class="sparkline"><div class="sp-bar" style="height:10px"></div><div class="sp-bar" style="height:14px"></div><div class="sp-bar" style="height:12px"></div><div class="sp-bar" style="height:16px"></div><div class="sp-bar" style="height:18px"></div><div class="sp-bar" style="height:20px"></div><div class="sp-bar" style="height:20px"></div></div></td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--text)">Velocity Breach</span></td>
+            <td style="color:var(--muted)">61</td>
+            <td style="color:var(--accent)">60</td>
+            <td><span style="color:var(--accent)">98.4%</span></td>
+            <td><span style="color:var(--accent)">98.4%</span></td>
+            <td><span style="font-family:'Syne',sans-serif;font-weight:700;color:var(--accent)">98.4</span></td>
+            <td><div class="sparkline"><div class="sp-bar" style="height:16px"></div><div class="sp-bar" style="height:14px"></div><div class="sp-bar" style="height:18px"></div><div class="sp-bar" style="height:15px"></div><div class="sp-bar" style="height:17px"></div><div class="sp-bar" style="height:18px"></div><div class="sp-bar" style="height:20px"></div></div></td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--text)">Account Takeover</span></td>
+            <td style="color:var(--muted)">49</td>
+            <td style="color:var(--warn)">44</td>
+            <td><span style="color:var(--warn)">91.7%</span></td>
+            <td><span style="color:var(--warn)">89.8%</span></td>
+            <td><span style="font-family:'Syne',sans-serif;font-weight:700;color:var(--warn)">90.7</span></td>
+            <td><div class="sparkline"><div class="sp-bar high" style="height:20px"></div><div class="sp-bar high" style="height:16px"></div><div class="sp-bar high" style="height:18px"></div><div class="sp-bar high" style="height:14px"></div><div class="sp-bar high" style="height:16px"></div><div class="sp-bar high" style="height:12px"></div><div class="sp-bar high" style="height:10px"></div></div></td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--text)">Device Spoofing</span></td>
+            <td style="color:var(--muted)">39</td>
+            <td style="color:var(--accent)">38</td>
+            <td><span style="color:var(--accent)">97.4%</span></td>
+            <td><span style="color:var(--accent)">97.4%</span></td>
+            <td><span style="font-family:'Syne',sans-serif;font-weight:700;color:var(--accent)">97.4</span></td>
+            <td><div class="sparkline"><div class="sp-bar" style="height:12px"></div><div class="sp-bar" style="height:14px"></div><div class="sp-bar" style="height:13px"></div><div class="sp-bar" style="height:16px"></div><div class="sp-bar" style="height:17px"></div><div class="sp-bar" style="height:18px"></div><div class="sp-bar" style="height:20px"></div></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span class="footer-logo">ShieldPay</span>
+  <span>© 2026 ShieldPay Inc. — SOC2 Type II Certified</span>
+  <span>PCI-DSS Level 1 Compliant</span>
+</footer>
+
+<script>
+  const days = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+  const levels = [[0,0,1,1,0,0,1,2,2,3,2,2,3,2,2,2,1,2,1,1,2,2,1,1],
+                  [0,0,0,1,0,0,1,2,3,2,3,3,2,2,3,4,2,3,2,1,1,2,1,0],
+                  [0,1,0,0,0,0,1,1,2,2,2,2,2,3,2,2,2,2,1,2,1,1,0,0],
+                  [0,0,0,1,1,0,0,1,2,2,3,3,3,3,3,4,4,3,2,2,2,1,1,0],
+                  [0,0,1,1,0,0,0,2,3,3,2,3,3,4,4,4,3,3,2,2,2,1,1,0],
+                  [1,1,0,0,0,0,2,3,3,3,2,2,2,2,2,2,2,2,1,2,1,1,0,0],
+                  [0,0,0,0,0,0,1,1,1,2,1,1,1,1,2,1,1,1,1,1,0,0,0,0]];
+  const hm = document.getElementById('heatmap');
+  days.forEach((d, di) => {
+    const label = document.createElement('div');
+    label.className = 'hm-day-label';
+    label.textContent = d;
+    hm.appendChild(label);
+    levels[di].forEach(l => {
+      const cell = document.createElement('div');
+      cell.className = `hm-cell l${l}`;
+      hm.appendChild(cell);
+    });
+  });
+
+  function setTab(btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

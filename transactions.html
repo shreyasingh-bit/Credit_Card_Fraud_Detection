@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShieldPay — Transactions</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* FILTER BAR */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+  }
+
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 320px;
+    transition: border-color 0.2s;
+  }
+
+  .search-box:focus-within { border-color: var(--accent); }
+
+  .search-box input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    width: 100%;
+  }
+
+  .search-box input::placeholder { color: var(--muted); }
+
+  .search-icon { color: var(--muted); font-size: 14px; }
+
+  .filter-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a7a6e'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  .filter-select:focus { border-color: var(--accent); }
+
+  .filter-spacer { flex: 1; }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid rgba(0,200,150,0.2);
+    padding: 8px 14px;
+    background: rgba(0,200,150,0.05);
+  }
+
+  /* SUMMARY CARDS */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin: 0 48px 32px;
+  }
+
+  .summary-card {
+    background: var(--surface);
+    padding: 20px 24px;
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+
+  .summary-card:hover { background: var(--surface2); }
+  .summary-card.active { background: rgba(0,200,150,0.05); }
+
+  .sc-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px; }
+  .sc-value { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; }
+  .sc-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+  /* TABLE */
+  .table-container {
+    padding: 0 48px 48px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .data-table thead th {
+    text-align: left;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    transition: color 0.2s;
+  }
+
+  .data-table thead th:hover { color: var(--accent); }
+  .data-table thead th.sorted { color: var(--accent); }
+
+  .sort-arrow { margin-left: 4px; opacity: 0.4; }
+  .sorted .sort-arrow { opacity: 1; }
+
+  .data-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    animation: fadeUp 0.3s ease both;
+  }
+
+  .data-table tbody tr:hover { background: rgba(0,200,150,0.03); }
+
+  .data-table td {
+    padding: 14px 16px;
+    vertical-align: middle;
+  }
+
+  .td-merchant { display: flex; align-items: center; gap: 12px; }
+  .merchant-icon {
+    width: 32px; height: 32px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .merchant-name { color: var(--text); font-size: 12px; margin-bottom: 2px; }
+  .merchant-cat { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .td-card { color: var(--muted); letter-spacing: 2px; }
+  .td-amount { font-family: 'Syne', sans-serif; font-weight: 600; }
+  .td-amount.neg { color: var(--text); }
+  
+  .risk-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .risk-bar {
+    width: 48px; height: 4px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .risk-fill-bar { height: 100%; border-radius: 2px; }
+  .risk-fill-bar.low { background: var(--accent); }
+  .risk-fill-bar.med { background: var(--warn); }
+  .risk-fill-bar.high { background: var(--danger); }
+
+  .risk-num { font-size: 11px; }
+  .risk-num.low { color: var(--accent); }
+  .risk-num.med { color: var(--warn); }
+  .risk-num.high { color: var(--danger); }
+
+  .action-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 5px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.2s;
+  }
+
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* PAGINATION */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 0;
+  }
+
+  .page-btns { display: flex; gap: 4px; }
+
+  .page-btn {
+    width: 28px; height: 28px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .page-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page-btn.active { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+  /* DETAIL DRAWER */
+  .drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    backdrop-filter: blur(4px);
+  }
+
+  .drawer-overlay.open { opacity: 1; pointer-events: all; }
+
+  .drawer {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 420px;
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    z-index: 201;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    overflow-y: auto;
+  }
+
+  .drawer.open { transform: translateX(0); }
+
+  .drawer-header {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .drawer-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .close-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 32px; height: 32px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .close-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .drawer-body { padding: 24px; }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .detail-row:last-child { border: none; }
+  .detail-key { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+  .detail-val { color: var(--text); }
+
+  .detail-section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 24px 0 8px;
+  }
+
+  .risk-breakdown {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    margin-top: 8px;
+  }
+
+  .rbd-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 11px;
+  }
+
+  .rbd-label { color: var(--muted); width: 80px; flex-shrink: 0; }
+  .rbd-bar { flex: 1; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+  .rbd-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .rbd-pct { color: var(--text); width: 32px; text-align: right; font-size: 10px; }
+
+  .drawer-actions {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 20px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 6px; bottom: 6px;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .tl-item {
+    position: relative;
+    padding-bottom: 16px;
+    font-size: 11px;
+  }
+
+  .tl-dot {
+    position: absolute;
+    left: -17px;
+    top: 4px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .tl-dot.ok { background: var(--accent); border-color: var(--accent); }
+  .tl-dot.warn { background: var(--warn); border-color: var(--warn); }
+  .tl-dot.danger { background: var(--danger); border-color: var(--danger); }
+
+  .tl-time { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
+  .tl-text { color: var(--text); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="fraud-detection.html" class="logo">
+    <div class="logo-icon"></div>
+    ShieldPay
+  </a>
+  <ul class="nav-links">
+    <li><a href="fraud-detection.html">Dashboard</a></li>
+    <li><a href="transactions.html" class="active">Transactions</a></li>
+    <li><a href="analytics.html">Analytics</a></li>
+    <li><a href="rules.html">Rules</a></li>
+    <li><a href="#" style="color:var(--muted)">Alerts</a></li>
+  </ul>
+  <a href="#" class="nav-cta">Export CSV</a>
+</nav>
+
+<main>
+
+  <div class="page-header fade-up">
+    <div class="page-header-left">
+      <div class="page-crumb">
+        <a href="fraud-detection.html">Home</a> › <span>Transactions</span>
+      </div>
+      <div class="page-title">Transactions</div>
+      <div class="page-subtitle">Real-time feed of all card activity — filter, inspect, and act on individual transactions.</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn-outline">↓ Export</button>
+      <button class="btn-primary">+ Manual Review</button>
+    </div>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <div class="search-box">
+      <span class="search-icon">⌕</span>
+      <input type="text" placeholder="Search merchant, card, ID…" />
+    </div>
+    <select class="filter-select">
+      <option>All Status</option>
+      <option>Approved</option>
+      <option>Under Review</option>
+      <option>Blocked</option>
+    </select>
+    <select class="filter-select">
+      <option>All Cards</option>
+      <option>Visa</option>
+      <option>Mastercard</option>
+      <option>Amex</option>
+    </select>
+    <select class="filter-select">
+      <option>Last 24 Hours</option>
+      <option>Last 7 Days</option>
+      <option>Last 30 Days</option>
+      <option>Custom Range</option>
+    </select>
+    <select class="filter-select">
+      <option>All Risk</option>
+      <option>Low (0–30)</option>
+      <option>Medium (31–70)</option>
+      <option>High (71–100)</option>
+    </select>
+    <div class="filter-spacer"></div>
+    <div class="live-badge"><span class="badge-dot"></span> Live Feed</div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <section class="section" style="padding:24px 0 0">
+    <div class="summary-grid fade-up-1">
+      <div class="summary-card active">
+        <div class="sc-label">Total Today</div>
+        <div class="sc-value">18,442</div>
+        <div class="sc-sub delta-up">↑ 8.2% vs yesterday</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Approved</div>
+        <div class="sc-value" style="color:var(--accent)">17,943</div>
+        <div class="sc-sub">97.3% approval rate</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Under Review</div>
+        <div class="sc-value" style="color:var(--warn)">252</div>
+        <div class="sc-sub">Pending analyst action</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Blocked</div>
+        <div class="sc-value" style="color:var(--danger)">247</div>
+        <div class="sc-sub delta-up">$1.4M prevented</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Avg Risk Score</div>
+        <div class="sc-value" style="color:var(--accent)">14.2</div>
+        <div class="sc-sub delta-up">↓ 3pts from baseline</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TABLE -->
+  <div class="table-container fade-up-2" style="padding-top:32px">
+    <div class="panel" style="padding:0;overflow:visible">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="sorted">Merchant <span class="sort-arrow">↓</span></th>
+            <th>Transaction ID <span class="sort-arrow">↕</span></th>
+            <th>Card <span class="sort-arrow">↕</span></th>
+            <th>Time <span class="sort-arrow">↕</span></th>
+            <th>Amount <span class="sort-arrow">↕</span></th>
+            <th>Location <span class="sort-arrow">↕</span></th>
+            <th>Risk Score <span class="sort-arrow">↕</span></th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr onclick="openDrawer('TXN-8831')">
+            <td><div class="td-merchant"><div class="merchant-icon">🍎</div><div><div class="merchant-name">Apple Store</div><div class="merchant-cat">Electronics</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8831</td>
+            <td class="td-card">•••• 3370</td>
+            <td style="color:var(--muted)">14:21 EST</td>
+            <td class="td-amount neg">$1,299.00</td>
+            <td style="color:var(--muted)">NYC, US</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar med" style="width:58%"></div></div><span class="risk-num med">58</span></div></td>
+            <td><span class="status-pill pill-review">Review</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8831')">Inspect</button></td>
+          </tr>
+          <tr onclick="openDrawer('TXN-8830')">
+            <td><div class="td-merchant"><div class="merchant-icon">🥦</div><div><div class="merchant-name">Whole Foods</div><div class="merchant-cat">Grocery</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8830</td>
+            <td class="td-card">•••• 4471</td>
+            <td style="color:var(--muted)">13:58 EST</td>
+            <td class="td-amount neg">$84.37</td>
+            <td style="color:var(--muted)">Brooklyn, US</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar low" style="width:7%"></div></div><span class="risk-num low">7</span></div></td>
+            <td><span class="status-pill pill-ok">Approved</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8830')">Inspect</button></td>
+          </tr>
+          <tr onclick="openDrawer('TXN-8829')">
+            <td><div class="td-merchant"><div class="merchant-icon">🌍</div><div><div class="merchant-name">Unknown Wire</div><div class="merchant-cat">Transfer</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8829</td>
+            <td class="td-card">•••• 3370</td>
+            <td style="color:var(--muted)">13:45 EST</td>
+            <td class="td-amount neg" style="color:var(--danger)">$4,200.00</td>
+            <td style="color:var(--danger)">Lagos, NG</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar high" style="width:97%"></div></div><span class="risk-num high">97</span></div></td>
+            <td><span class="status-pill pill-block">Blocked</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8829')">Inspect</button></td>
+          </tr>
+          <tr onclick="openDrawer('TXN-8828')">
+            <td><div class="td-merchant"><div class="merchant-icon">🎵</div><div><div class="merchant-name">Spotify</div><div class="merchant-cat">Subscription</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8828</td>
+            <td class="td-card">•••• 4471</td>
+            <td style="color:var(--muted)">12:00 EST</td>
+            <td class="td-amount neg">$9.99</td>
+            <td style="color:var(--muted)">Stockholm, SE</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar low" style="width:4%"></div></div><span class="risk-num low">4</span></div></td>
+            <td><span class="status-pill pill-ok">Approved</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8828')">Inspect</button></td>
+          </tr>
+          <tr onclick="openDrawer('TXN-8827')">
+            <td><div class="td-merchant"><div class="merchant-icon">⛽</div><div><div class="merchant-name">Shell Station</div><div class="merchant-cat">Gas & Fuel</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8827</td>
+            <td class="td-card">•••• 8821</td>
+            <td style="color:var(--muted)">11:30 EST</td>
+            <td class="td-amount neg">$67.44</td>
+            <td style="color:var(--muted)">Newark, US</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar low" style="width:11%"></div></div><span class="risk-num low">11</span></div></td>
+            <td><span class="status-pill pill-ok">Approved</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8827')">Inspect</button></td>
+          </tr>
+          <tr onclick="openDrawer('TXN-8826')">
+            <td><div class="td-merchant"><div class="merchant-icon">🏧</div><div><div class="merchant-name">ATM Withdrawal</div><div class="merchant-cat">Cash / ATM</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8826</td>
+            <td class="td-card">•••• 3370</td>
+            <td style="color:var(--muted)">10:15 EST</td>
+            <td class="td-amount neg">$500.00</td>
+            <td style="color:var(--warn)">Unknown</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar med" style="width:44%"></div></div><span class="risk-num med">44</span></div></td>
+            <td><span class="status-pill pill-review">Review</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8826')">Inspect</button></td>
+          </tr>
+          <tr onclick="openDrawer('TXN-8825')">
+            <td><div class="td-merchant"><div class="merchant-icon">☕</div><div><div class="merchant-name">Starbucks</div><div class="merchant-cat">Food & Drink</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8825</td>
+            <td class="td-card">•••• 4471</td>
+            <td style="color:var(--muted)">09:44 EST</td>
+            <td class="td-amount neg">$7.50</td>
+            <td style="color:var(--muted)">NYC, US</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar low" style="width:3%"></div></div><span class="risk-num low">3</span></div></td>
+            <td><span class="status-pill pill-ok">Approved</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8825')">Inspect</button></td>
+          </tr>
+          <tr onclick="openDrawer('TXN-8824')">
+            <td><div class="td-merchant"><div class="merchant-icon">✈️</div><div><div class="merchant-name">FlightHub</div><div class="merchant-cat">Travel</div></div></div></td>
+            <td style="color:var(--muted)">TXN-8824</td>
+            <td class="td-card">•••• 8821</td>
+            <td style="color:var(--muted)">09:12 EST</td>
+            <td class="td-amount neg" style="color:var(--danger)">$2,840.00</td>
+            <td style="color:var(--danger)">Moscow, RU</td>
+            <td><div class="risk-score"><div class="risk-bar"><div class="risk-fill-bar high" style="width:89%"></div></div><span class="risk-num high">89</span></div></td>
+            <td><span class="status-pill pill-block">Blocked</span></td>
+            <td><button class="action-btn" onclick="event.stopPropagation();openDrawer('TXN-8824')">Inspect</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="pagination">
+        <span>Showing 1–8 of 18,442 transactions</span>
+        <div class="page-btns">
+          <button class="page-btn">‹</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn">…</button>
+          <button class="page-btn">2305</button>
+          <button class="page-btn">›</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- DETAIL DRAWER -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title" id="drawerTitle">TXN-8831</div>
+    <button class="close-btn" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <span class="status-pill pill-review" id="drawerStatus">Under Review</span>
+      <span style="font-size:22px;font-family:'Syne',sans-serif;font-weight:700" id="drawerAmount">$1,299.00</span>
+    </div>
+    <div class="detail-section-title">Transaction Details</div>
+    <div class="detail-row"><span class="detail-key">Merchant</span><span class="detail-val" id="drawerMerchant">Apple Store — 5th Ave</span></div>
+    <div class="detail-row"><span class="detail-key">Category</span><span class="detail-val">Electronics</span></div>
+    <div class="detail-row"><span class="detail-key">Card</span><span class="detail-val">•••• •••• •••• 3370 (Visa)</span></div>
+    <div class="detail-row"><span class="detail-key">Cardholder</span><span class="detail-val">J. Hoffman</span></div>
+    <div class="detail-row"><span class="detail-key">Time</span><span class="detail-val">Today, 14:21:07 EST</span></div>
+    <div class="detail-row"><span class="detail-key">Location</span><span class="detail-val">New York City, US</span></div>
+    <div class="detail-row"><span class="detail-key">IP Address</span><span class="detail-val">72.83.143.200</span></div>
+    <div class="detail-row"><span class="detail-key">Device</span><span class="detail-val">iPhone 15 Pro — Safari</span></div>
+
+    <div class="detail-section-title">Risk Breakdown</div>
+    <div class="risk-breakdown">
+      <div class="rbd-row"><span class="rbd-label">Velocity</span><div class="rbd-bar"><div class="rbd-fill" style="width:62%;background:var(--warn)"></div></div><span class="rbd-pct">62</span></div>
+      <div class="rbd-row"><span class="rbd-label">Geo Match</span><div class="rbd-bar"><div class="rbd-fill" style="width:18%"></div></div><span class="rbd-pct">18</span></div>
+      <div class="rbd-row"><span class="rbd-label">Behavior</span><div class="rbd-bar"><div class="rbd-fill" style="width:70%;background:var(--warn)"></div></div><span class="rbd-pct">70</span></div>
+      <div class="rbd-row"><span class="rbd-label">Device</span><div class="rbd-bar"><div class="rbd-fill" style="width:12%"></div></div><span class="rbd-pct">12</span></div>
+      <div class="rbd-row" style="margin:0"><span class="rbd-label">Network</span><div class="rbd-bar"><div class="rbd-fill" style="width:30%"></div></div><span class="rbd-pct">30</span></div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted)">Flagged: Purchase amount 4x above 30-day average for this card.</div>
+
+    <div class="detail-section-title">Audit Timeline</div>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-dot ok"></div>
+        <div class="tl-time">14:21:07</div>
+        <div class="tl-text">Transaction initiated at Apple Store POS terminal</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot warn"></div>
+        <div class="tl-time">14:21:07</div>
+        <div class="tl-text">Risk engine flagged — velocity rule triggered (score: 58)</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot warn"></div>
+        <div class="tl-time">14:21:08</div>
+        <div class="tl-text">Placed in review queue — awaiting analyst decision</div>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-actions">
+    <button class="btn-primary" style="flex:1;text-align:center">✓ Approve</button>
+    <button class="btn-danger" style="flex:1;text-align:center">✕ Block</button>
+    <button class="btn-outline">⚑ Escalate</button>
+  </div>
+</div>
+
+<footer>
+  <span class="footer-logo">ShieldPay</span>
+  <span>© 2026 ShieldPay Inc. — SOC2 Type II Certified</span>
+  <span>PCI-DSS Level 1 Compliant</span>
+</footer>
+
+<script>
+  function openDrawer(id) {
+    document.getElementById('drawer').classList.add('open');
+    document.getElementById('drawerOverlay').classList.add('open');
+    document.getElementById('drawerTitle').textContent = id;
+    const data = {
+      'TXN-8829': { amount: '$4,200.00', merchant: 'Unknown Wire Transfer', status: 'pill-block', statusText: 'Blocked' },
+      'TXN-8824': { amount: '$2,840.00', merchant: 'FlightHub — International', status: 'pill-block', statusText: 'Blocked' },
+    };
+    if (data[id]) {
+      document.getElementById('drawerAmount').textContent = data[id].amount;
+      document.getElementById('drawerMerchant').textContent = data[id].merchant;
+      document.getElementById('drawerStatus').className = 'status-pill ' + data[id].status;
+      document.getElementById('drawerStatus').textContent = data[id].statusText;
+    } else {
+      document.getElementById('drawerAmount').textContent = '$1,299.00';
+      document.getElementById('drawerMerchant').textContent = 'Apple Store — 5th Ave';
+      document.getElementById('drawerStatus').className = 'status-pill pill-review';
+      document.getElementById('drawerStatus').textContent = 'Under Review';
+    }
+  }
+
+  function closeDrawer() {
+    document.getElementById('drawer').classList.remove('open');
+    document.getElementById('drawerOverlay').classList.remove('open');
+  }
+</script>
+</body>
+</html>

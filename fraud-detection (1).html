@@ -1,0 +1,2763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShieldPay — Fraud Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #050a0e;
+    --surface: #0a1520;
+    --surface2: #0f1e2d;
+    --border: rgba(0, 200, 150, 0.12);
+    --accent: #00c896;
+    --accent2: #00a8ff;
+    --danger: #ff3b5c;
+    --warn: #ffb800;
+    --text: #e8f4f0;
+    --muted: #5a7a6e;
+    --grid: rgba(0, 200, 150, 0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -20%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,200,150,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    animation: drift 12s ease-in-out infinite alternate;
+  }
+
+  @keyframes drift {
+    from { transform: translate(0, 0); }
+    to { transform: translate(200px, 100px); }
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 48px;
+    background: rgba(5, 10, 14, 0.8);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse-icon 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-icon {
+    0%,100% { box-shadow: 0 0 0 0 rgba(0,200,150,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(0,200,150,0); }
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+  .nav-links a.active { color: var(--accent); }
+
+  .nav-cta {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 8px 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nav-cta::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform: translateX(-100%);
+    transition: transform 0.2s;
+    z-index: -1;
+  }
+
+  .nav-cta:hover {
+    color: var(--bg);
+  }
+  .nav-cta:hover::before { transform: translateX(0); }
+
+  /* MAIN CONTENT */
+  main {
+    position: relative;
+    z-index: 1;
+    padding-top: 88px;
+  }
+
+  /* HERO */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    padding: 80px 48px;
+    min-height: calc(100vh - 88px);
+  }
+
+  .hero-left { max-width: 560px; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 200, 150, 0.08);
+    border: 1px solid rgba(0,200,150,0.2);
+    padding: 6px 14px;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .badge-dot {
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: blink 1.5s ease infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(44px, 5vw, 68px);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+
+  h1 .accent { color: var(--accent); }
+  h1 .block { display: block; }
+
+  .hero-desc {
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--muted);
+    margin-bottom: 40px;
+    max-width: 420px;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 14px 32px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+
+  .btn-primary:hover {
+    background: #00e6ae;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(0,200,150,0.4);
+  }
+
+  .btn-ghost {
+    color: var(--muted);
+    font-size: 13px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+  }
+  .btn-ghost:hover { color: var(--text); }
+
+  .hero-stats {
+    display: flex;
+    gap: 40px;
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+
+  .stat-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+
+  /* CARD VISUALIZATION */
+  .hero-right {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+
+  .card-stack {
+    position: relative;
+    width: 380px;
+    height: 400px;
+  }
+
+  .credit-card {
+    width: 340px;
+    height: 200px;
+    border-radius: 16px;
+    padding: 28px;
+    position: absolute;
+    transition: all 0.5s ease;
+    cursor: pointer;
+  }
+
+  .card-1 {
+    background: linear-gradient(135deg, #0a2a1e 0%, #0d3d2e 50%, #0a2a1e 100%);
+    border: 1px solid rgba(0,200,150,0.3);
+    box-shadow: 0 20px 60px rgba(0,200,150,0.15), 0 0 0 1px rgba(0,200,150,0.05);
+    top: 0; left: 0;
+    z-index: 3;
+    transform: rotate(-2deg);
+    animation: cardFloat 6s ease-in-out infinite;
+  }
+
+  .card-2 {
+    background: linear-gradient(135deg, #0a1520 0%, #0f2035 50%, #0a1520 100%);
+    border: 1px solid rgba(0,168,255,0.2);
+    top: 60px; left: 40px;
+    z-index: 2;
+    transform: rotate(2deg);
+    animation: cardFloat2 6s ease-in-out infinite 1s;
+  }
+
+  .card-3 {
+    background: linear-gradient(135deg, #150a1e 0%, #200a1e 50%, #150a1e 100%);
+    border: 1px solid rgba(255,59,92,0.15);
+    top: 120px; left: 20px;
+    z-index: 1;
+    transform: rotate(-1deg);
+    animation: cardFloat3 6s ease-in-out infinite 2s;
+  }
+
+  @keyframes cardFloat {
+    0%,100% { transform: rotate(-2deg) translateY(0); }
+    50% { transform: rotate(-2deg) translateY(-8px); }
+  }
+  @keyframes cardFloat2 {
+    0%,100% { transform: rotate(2deg) translateY(0); }
+    50% { transform: rotate(2deg) translateY(-5px); }
+  }
+  @keyframes cardFloat3 {
+    0%,100% { transform: rotate(-1deg) translateY(0); }
+    50% { transform: rotate(-1deg) translateY(-3px); }
+  }
+
+  .card-chip {
+    width: 36px; height: 28px;
+    background: linear-gradient(135deg, #c8a800, #f0d060);
+    border-radius: 4px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 4px;
+  }
+
+  .chip-cell {
+    background: rgba(0,0,0,0.2);
+    border-radius: 1px;
+  }
+
+  .card-number {
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 16px;
+  }
+
+  .card-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .card-name { font-size: 11px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px; }
+  .card-brand {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* ALERT BADGE */
+  .alert-badge {
+    position: absolute;
+    top: -12px; right: -16px;
+    background: var(--danger);
+    color: white;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 2px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    animation: alertPop 0.5s 1s ease both, alertPulse 2s 1.5s ease-in-out infinite;
+    opacity: 0;
+  }
+
+  @keyframes alertPop {
+    from { opacity: 0; transform: scale(0.8) translateY(4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  @keyframes alertPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,59,92,0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(255,59,92,0); }
+  }
+
+  /* SCAN LINE */
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: 16px;
+  }
+
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scan 3s ease-in-out infinite;
+  }
+
+  @keyframes scan {
+    0% { top: 0; opacity: 1; }
+    100% { top: 100%; opacity: 0.3; }
+  }
+
+  /* TRANSACTION SIDEBAR */
+  .tx-panel {
+    position: absolute;
+    right: -80px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tx-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    opacity: 0;
+    animation: slideIn 0.4s ease both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tx-item::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+
+  .tx-item.safe::before { background: var(--accent); }
+  .tx-item.warn::before { background: var(--warn); }
+  .tx-item.danger::before { background: var(--danger); }
+
+  .tx-item:nth-child(1) { animation-delay: 1.2s; }
+  .tx-item:nth-child(2) { animation-delay: 1.5s; }
+  .tx-item:nth-child(3) { animation-delay: 1.8s; }
+  .tx-item:nth-child(4) { animation-delay: 2.1s; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .tx-merchant { color: var(--text); font-weight: 500; font-size: 11px; }
+  .tx-meta { display: flex; justify-content: space-between; }
+  .tx-amount { color: var(--muted); }
+  .tx-status-safe { color: var(--accent); }
+  .tx-status-warn { color: var(--warn); }
+  .tx-status-danger { color: var(--danger); }
+
+  /* DASHBOARD SECTION */
+  .section {
+    padding: 80px 48px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .section-tag {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* DASHBOARD GRID */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .panel:hover { border-color: rgba(0,200,150,0.25); }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .panel:hover::before { opacity: 1; }
+
+  .panel-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+  }
+
+  .panel-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .delta-up { color: var(--accent); }
+  .delta-dn { color: var(--danger); }
+
+  /* CHART */
+  .chart-panel {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  .mini-chart {
+    margin-top: 20px;
+    height: 140px;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+
+  .bar {
+    width: 100%;
+    border-radius: 2px 2px 0 0;
+    position: relative;
+    transition: filter 0.2s;
+  }
+  .bar:hover { filter: brightness(1.3); }
+
+  .bar.normal { background: rgba(0,200,150,0.3); border-top: 2px solid var(--accent); }
+  .bar.flagged { background: rgba(255,59,92,0.25); border-top: 2px solid var(--danger); }
+
+  .bar-day { font-size: 9px; color: var(--muted); text-transform: uppercase; }
+
+  /* RISK PANEL */
+  .risk-panel { grid-column: 2; grid-row: 1; }
+
+  .risk-meter {
+    margin: 20px 0 16px;
+    height: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .risk-fill {
+    height: 100%;
+    border-radius: 4px;
+    position: relative;
+  }
+
+  .risk-fill.low {
+    width: 18%;
+    background: linear-gradient(90deg, var(--accent), #00ff9e);
+  }
+
+  .risk-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: white;
+    border-radius: 2px;
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  .risk-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* RECENT TXS */
+  .tx-table {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tx-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    transition: background 0.2s;
+    padding: 10px 8px;
+  }
+
+  .tx-row:hover { background: rgba(0,200,150,0.03); }
+
+  .tx-info-name { color: var(--text); margin-bottom: 2px; }
+  .tx-info-time { color: var(--muted); font-size: 10px; }
+  .tx-row-amount { color: var(--text); text-align: right; }
+  
+  .status-pill {
+    padding: 3px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+
+  .pill-ok { background: rgba(0,200,150,0.12); color: var(--accent); border: 1px solid rgba(0,200,150,0.2); }
+  .pill-review { background: rgba(255,184,0,0.1); color: var(--warn); border: 1px solid rgba(255,184,0,0.2); }
+  .pill-block { background: rgba(255,59,92,0.1); color: var(--danger); border: 1px solid rgba(255,59,92,0.2); }
+
+  /* DETECTION METHODS */
+  .methods-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 48px;
+  }
+
+  .method-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+
+  .method-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(0,200,150,0.1);
+  }
+
+  .method-icon {
+    width: 44px; height: 44px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-bottom: 20px;
+    transition: border-color 0.3s;
+  }
+
+  .method-card:hover .method-icon { border-color: var(--accent); }
+
+  .method-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    letter-spacing: -0.3px;
+  }
+
+  .method-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .method-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 0%; height: 2px;
+    background: var(--accent);
+    transition: width 0.4s ease;
+  }
+
+  .method-card:hover::after { width: 100%; }
+
+  /* SCORE GAUGE */
+  .score-panel { grid-column: 3; grid-row: 1 / 3; }
+
+  .gauge-container {
+    display: flex;
+    justify-content: center;
+    margin: 24px 0 16px;
+    position: relative;
+  }
+
+  svg.gauge { overflow: visible; }
+
+  .score-number {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -25%);
+    text-align: center;
+  }
+
+  .score-big {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--accent);
+    display: block;
+  }
+
+  .score-label-sm {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* SCORE LIST */
+  .score-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .score-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .score-name { color: var(--muted); }
+  .score-bar-wrap {
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.05);
+    margin: 0 12px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .score-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .score-pct { color: var(--text); }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--muted);
+    position: relative;
+    z-index: 1;
+  }
+
+  .footer-logo { font-family: 'Syne', sans-serif; font-weight: 700; color: var(--text); }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* TERMINAL PANEL */
+  .terminal {
+    background: #020c05;
+    border: 1px solid rgba(0,200,150,0.15);
+    padding: 20px;
+    font-size: 11px;
+    line-height: 1.8;
+    margin-top: 16px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  .t-line { display: flex; gap: 10px; }
+  .t-time { color: var(--muted); }
+  .t-ok { color: var(--accent); }
+  .t-warn { color: var(--warn); }
+  .t-danger { color: var(--danger); }
+  .t-msg { color: rgba(255,255,255,0.6); }
+
+  .cursor {
+    display: inline-block;
+    width: 6px;
+    height: 12px;
+    background: var(--accent);
+    animation: cursorBlink 1s step-end infinite;
+    vertical-align: middle;
+  }
+
+  @keyframes cursorBlink {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 1100px) {
+    .hero { grid-template-columns: 1fr; min-height: auto; }
+    .hero-right { display: none; }
+    .dashboard-grid { grid-template-columns: 1fr 1fr; }
+    .chart-panel { grid-column: 1 / 3; grid-row: auto; }
+    .score-panel { grid-column: 1 / 3; grid-row: auto; }
+    .methods-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ═══════════════════════════════════════════════════
+     TRANSACTION ANALYZER SECTION
+  ═══════════════════════════════════════════════════ */
+  #analyze-section {
+    border-top: 1px solid var(--border);
+    position: relative;
+    z-index: 1;
+    scroll-margin-top: 88px;
+  }
+
+  .analyzer-header {
+    padding: 64px 48px 40px;
+    background: linear-gradient(180deg, rgba(0,200,150,0.04) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 32px;
+  }
+
+  .analyzer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,200,150,0.08);
+    border: 1px solid rgba(0,200,150,0.2);
+    padding: 5px 12px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .analyzer-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+
+  .analyzer-sub {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 500px;
+  }
+
+  .analyzer-layout {
+    display: grid;
+    grid-template-columns: 480px 1fr;
+    min-height: 700px;
+  }
+
+  /* ── FORM COLUMN ── */
+  .analyzer-form-col {
+    border-right: 1px solid var(--border);
+    padding: 36px 40px 48px;
+    background: rgba(10,21,32,0.3);
+    overflow-y: auto;
+  }
+
+  .form-section-label {
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin: 28px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .form-section-label:first-child { margin-top: 0; }
+  .form-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .form-field label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .form-field input,
+  .form-field select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    width: 100%;
+    appearance: none;
+  }
+
+  .form-field input:focus,
+  .form-field select:focus {
+    border-color: var(--accent);
+    background: rgba(0,200,150,0.03);
+  }
+
+  .form-field input::placeholder { color: var(--muted); }
+
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 12px;
+    pointer-events: none;
+  }
+
+  .field-hint {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .input-prefix-wrap { position: relative; }
+  .input-prefix {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 12px;
+    pointer-events: none;
+  }
+  .input-prefix-wrap input { padding-left: 26px; }
+
+  .analyzer-btn-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+  }
+
+  .btn-analyze {
+    flex: 1;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 14px 20px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.25s;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-analyze::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+  .btn-analyze:hover::after { transform: translateX(100%); }
+  .btn-analyze:hover { background: #00e6ae; box-shadow: 0 8px 32px rgba(0,200,150,0.4); }
+  .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-demo {
+    background: transparent;
+    border: 1px solid rgba(0,168,255,0.3);
+    color: var(--accent2);
+    padding: 12px 18px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-demo:hover { background: rgba(0,168,255,0.08); border-color: var(--accent2); }
+
+  .btn-reset-form {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 12px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-reset-form:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* ── RESULTS COLUMN ── */
+  .analyzer-result-col {
+    padding: 36px 40px 48px;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  /* IDLE */
+  .idle-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 500px;
+    gap: 16px;
+    text-align: center;
+  }
+
+  .idle-hex {
+    width: 80px; height: 80px;
+    background: rgba(0,200,150,0.06);
+    border: 1px solid rgba(0,200,150,0.15);
+    clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    animation: hexFloat 4s ease-in-out infinite;
+  }
+  @keyframes hexFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+  .idle-text {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  /* SCANNING OVERLAY */
+  .scan-anim-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(5,10,14,0.96);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .scan-anim-overlay.active { opacity: 1; pointer-events: all; }
+
+  .scan-ring {
+    width: 64px; height: 64px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spinRing 0.8s linear infinite;
+  }
+  @keyframes spinRing { to { transform: rotate(360deg); } }
+
+  .scan-text {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .scan-bars {
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+    height: 24px;
+  }
+  .scan-bar {
+    width: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    animation: barWave 0.8s ease-in-out infinite;
+  }
+  .scan-bar:nth-child(2){animation-delay:0.1s}
+  .scan-bar:nth-child(3){animation-delay:0.2s}
+  .scan-bar:nth-child(4){animation-delay:0.3s}
+  .scan-bar:nth-child(5){animation-delay:0.4s}
+  @keyframes barWave { 0%,100%{height:6px}50%{height:22px} }
+
+  /* RESULT PANEL */
+  #analyzerResults { display: none; }
+
+  /* VERDICT CARD */
+  .verdict-card {
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.5s;
+  }
+  .verdict-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .verdict-card.fraud { border-color: var(--danger); background: rgba(255,59,92,0.05); }
+  .verdict-card.fraud::before { background: linear-gradient(90deg, transparent, var(--danger), transparent); }
+  .verdict-card.safe { border-color: var(--accent); background: rgba(0,200,150,0.05); }
+  .verdict-card.safe::before { background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+  .verdict-card.review { border-color: var(--warn); background: rgba(255,184,0,0.05); }
+  .verdict-card.review::before { background: linear-gradient(90deg, transparent, var(--warn), transparent); }
+
+  .verdict-icon-wrap {
+    width: 64px; height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+
+  .verdict-text-group { flex: 1; }
+  .verdict-main {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+  .verdict-main.fraud { color: var(--danger); }
+  .verdict-main.safe { color: var(--accent); }
+  .verdict-main.review { color: var(--warn); }
+  .verdict-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  .verdict-score-wrap { text-align: center; flex-shrink: 0; }
+  .verdict-score-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    display: block;
+  }
+  .verdict-score-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* RISK GAUGE */
+  .risk-gauge-block { margin-bottom: 20px; }
+  .rgb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+  .rgb-title { color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; }
+  .rgb-val { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; }
+
+  .gauge-track {
+    height: 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+  .gauge-fill {
+    height: 100%;
+    border-radius: 6px;
+    width: 0%;
+    transition: width 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .gauge-fill.safe  { background: linear-gradient(90deg, var(--accent), #00ff9e); }
+  .gauge-fill.review{ background: linear-gradient(90deg, var(--warn), #ff8c00); }
+  .gauge-fill.fraud { background: linear-gradient(90deg, var(--danger), #ff8800); }
+
+  .gauge-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* SIGNAL BREAKDOWN */
+  .signals-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .signal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .signal-card:hover { border-color: rgba(0,200,150,0.25); }
+  .signal-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+  .signal-card.ok::before   { background: var(--accent); }
+  .signal-card.warn::before { background: var(--warn); }
+  .signal-card.bad::before  { background: var(--danger); }
+
+  .sc-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+  .sc-value { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+  .sc-value.ok   { color: var(--accent); }
+  .sc-value.warn { color: var(--warn); }
+  .sc-value.bad  { color: var(--danger); }
+  .sc-icon { position: absolute; top: 12px; right: 12px; font-size: 16px; opacity: 0.5; }
+
+  /* FACTOR BARS */
+  .factors-section { margin-bottom: 20px; }
+  .factors-title {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .factors-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .factor-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 11px;
+  }
+  .factor-name { color: var(--muted); width: 120px; flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .factor-bar-wrap { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+  .factor-bar { height: 100%; border-radius: 3px; width: 0%; transition: width 0.8s ease; }
+  .factor-bar.low  { background: var(--accent); }
+  .factor-bar.med  { background: var(--warn); }
+  .factor-bar.high { background: var(--danger); }
+  .factor-pct { font-size: 10px; color: var(--text); width: 32px; text-align: right; }
+
+  /* CHARTS GRID */
+  .charts-section { margin-bottom: 20px; }
+  .charts-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .charts-grid-1 { margin-bottom: 14px; }
+
+  .chart-panel-az {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .chart-panel-az:hover { border-color: rgba(0,200,150,0.2); }
+  .chart-panel-az::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .chart-panel-az:hover::before { opacity: 1; }
+
+  .cp-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .cp-sub { font-size: 10px; color: var(--muted); margin-bottom: 14px; }
+
+  /* TX DETAIL TABLE */
+  .tx-detail-table { margin-bottom: 20px; }
+  .tx-detail-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tx-detail-table th {
+    text-align: left;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 8px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .tx-detail-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    vertical-align: middle;
+  }
+  .tx-detail-table tr:last-child td { border: none; }
+  .tx-detail-table tr:hover td { background: rgba(0,200,150,0.02); }
+  .td-key { color: var(--muted); font-size: 11px; }
+  .td-val { color: var(--text); }
+
+  /* RECOMMENDATION BOX */
+  .recommendation-box {
+    border: 1px solid var(--border);
+    padding: 18px 20px;
+    margin-bottom: 20px;
+  }
+  .rec-title {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .rec-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .rec-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .rec-item:last-child { margin: 0; }
+  .rec-icon { flex-shrink: 0; margin-top: 1px; }
+
+  /* HISTORY TABLE */
+  .history-mini { margin-top: 20px; }
+  .history-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s;
+    padding: 10px 6px;
+  }
+  .history-row:hover { background: rgba(0,200,150,0.03); }
+  .history-row:last-child { border: none; }
+  .hr-id { color: var(--muted); font-size: 10px; width: 80px; flex-shrink: 0; }
+  .hr-info { flex: 1; }
+  .hr-merchant { color: var(--text); }
+  .hr-amt { color: var(--muted); font-size: 10px; }
+  .hr-time { color: var(--muted); font-size: 10px; width: 60px; text-align: right; flex-shrink: 0; }
+
+  /* Animate results in */
+  .result-block { animation: fadeUp 0.4s ease both; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    ShieldPay
+  </div>
+  <ul class="nav-links">
+    <li><a href="fraud-detection.html" class="active">Dashboard</a></li>
+    <li><a href="transactions.html">Transactions</a></li>
+    <li><a href="analytics.html">Analytics</a></li>
+    <li><a href="rules.html">Rules</a></li>
+    <li><a href="#analyze-section" onclick="openAnalyzer()" style="color:var(--accent)">Analyze</a></li>
+  </ul>
+  <button class="nav-cta" onclick="openAnalyzer()">Analyze Transaction</button>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-left">
+      <div class="badge">
+        <span class="badge-dot"></span>
+        AI-Powered Protection
+      </div>
+      <h1>
+        <span class="block">Detect Fraud</span>
+        <span class="block accent">Before It</span>
+        <span class="block">Strikes.</span>
+      </h1>
+      <p class="hero-desc">
+        Real-time transaction monitoring powered by adaptive machine learning. Stop fraudulent charges in milliseconds, not minutes — with 99.7% accuracy.
+      </p>
+      <div class="hero-actions">
+        <button class="btn-primary">Start Monitoring →</button>
+        <button class="btn-ghost">▶ Watch How It Works</button>
+      </div>
+      <div class="hero-stats">
+        <div>
+          <span class="stat-val">99.7%</span>
+          <span class="stat-label">Detection Rate</span>
+        </div>
+        <div>
+          <span class="stat-val">&lt;50ms</span>
+          <span class="stat-label">Response Time</span>
+        </div>
+        <div>
+          <span class="stat-val">$4.2B</span>
+          <span class="stat-label">Fraud Blocked</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="card-stack">
+        <div class="credit-card card-3">
+          <div class="card-chip">
+            <div class="chip-cell"></div><div class="chip-cell"></div>
+            <div class="chip-cell"></div><div class="chip-cell"></div>
+          </div>
+          <div class="card-number">•••• •••• •••• 8821</div>
+          <div class="card-bottom">
+            <span class="card-name">Cancelled</span>
+            <span class="card-brand">VISA</span>
+          </div>
+        </div>
+        <div class="credit-card card-2">
+          <div class="card-chip">
+            <div class="chip-cell"></div><div class="chip-cell"></div>
+            <div class="chip-cell"></div><div class="chip-cell"></div>
+          </div>
+          <div class="card-number">•••• •••• •••• 4471</div>
+          <div class="card-bottom">
+            <span class="card-name">E. Martinez</span>
+            <span class="card-brand">MC</span>
+          </div>
+        </div>
+        <div class="credit-card card-1">
+          <div class="scan-overlay">
+            <div class="scan-line"></div>
+          </div>
+          <div class="card-chip">
+            <div class="chip-cell"></div><div class="chip-cell"></div>
+            <div class="chip-cell"></div><div class="chip-cell"></div>
+          </div>
+          <div class="card-number">4512 •••• •••• 3370</div>
+          <div class="card-bottom">
+            <span class="card-name">J. Hoffman</span>
+            <span class="card-brand">AMEX</span>
+          </div>
+          <div class="alert-badge">⚠ FRAUD DETECTED</div>
+        </div>
+      </div>
+
+      <div class="tx-panel">
+        <div class="tx-item safe">
+          <span class="tx-merchant">Amazon US</span>
+          <div class="tx-meta">
+            <span class="tx-amount">$49.99</span>
+            <span class="tx-status-safe">✓ Safe</span>
+          </div>
+        </div>
+        <div class="tx-item safe">
+          <span class="tx-merchant">Netflix</span>
+          <div class="tx-meta">
+            <span class="tx-amount">$15.49</span>
+            <span class="tx-status-safe">✓ Safe</span>
+          </div>
+        </div>
+        <div class="tx-item warn">
+          <span class="tx-merchant">Unknown ATM</span>
+          <div class="tx-meta">
+            <span class="tx-amount">$500.00</span>
+            <span class="tx-status-warn">⚑ Review</span>
+          </div>
+        </div>
+        <div class="tx-item danger">
+          <span class="tx-merchant">Overseas Wire</span>
+          <div class="tx-meta">
+            <span class="tx-amount">$4,200.00</span>
+            <span class="tx-status-danger">✕ Blocked</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE DASHBOARD -->
+  <section class="section">
+    <div class="section-header">
+      <span class="section-title">Live Dashboard</span>
+      <div class="section-line"></div>
+      <span class="section-tag">Updated 2s ago</span>
+    </div>
+
+    <div class="dashboard-grid">
+
+      <!-- CHART PANEL -->
+      <div class="panel chart-panel">
+        <div class="panel-label">
+          Transaction Volume — 7 Days
+          <span style="color:var(--accent);font-size:10px">● Live</span>
+        </div>
+        <div style="display:flex;gap:16px;font-size:11px;">
+          <span style="color:var(--accent)">■ Normal</span>
+          <span style="color:var(--danger)">■ Flagged</span>
+        </div>
+        <div class="mini-chart">
+          <div class="bar-wrap">
+            <div class="bar normal" style="height:75%"></div>
+            <div class="bar flagged" style="height:8%"></div>
+            <span class="bar-day">MON</span>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar normal" style="height:88%"></div>
+            <div class="bar flagged" style="height:5%"></div>
+            <span class="bar-day">TUE</span>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar normal" style="height:60%"></div>
+            <div class="bar flagged" style="height:12%"></div>
+            <span class="bar-day">WED</span>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar normal" style="height:95%"></div>
+            <div class="bar flagged" style="height:7%"></div>
+            <span class="bar-day">THU</span>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar normal" style="height:70%"></div>
+            <div class="bar flagged" style="height:20%"></div>
+            <span class="bar-day">FRI</span>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar normal" style="height:85%"></div>
+            <div class="bar flagged" style="height:4%"></div>
+            <span class="bar-day">SAT</span>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar normal" style="height:55%"></div>
+            <div class="bar flagged" style="height:9%"></div>
+            <span class="bar-day">SUN</span>
+          </div>
+        </div>
+
+        <!-- Live Terminal -->
+        <div class="panel-label" style="margin-top:24px">Detection Log</div>
+        <div class="terminal">
+          <div class="t-line"><span class="t-time">14:22:01</span><span class="t-ok">[OK]</span><span class="t-msg">TXN#8821 approved — merchant verified, normal pattern</span></div>
+          <div class="t-line"><span class="t-time">14:22:04</span><span class="t-ok">[OK]</span><span class="t-msg">TXN#8822 approved — Starbucks NYC, user's usual location</span></div>
+          <div class="t-line"><span class="t-time">14:22:11</span><span class="t-warn">[FLAG]</span><span class="t-msg">TXN#8823 held — amount 4x above baseline for card •4471</span></div>
+          <div class="t-line"><span class="t-time">14:22:15</span><span class="t-danger">[BLOCK]</span><span class="t-msg">TXN#8824 blocked — geo mismatch: US card, Lagos IP</span></div>
+          <div class="t-line"><span class="t-time">14:22:18</span><span class="t-ok">[OK]</span><span class="t-msg">TXN#8825 approved — recurring subscription matched</span></div>
+          <div class="t-line"><span class="t-time">14:22:22</span><span class="t-danger">[BLOCK]</span><span class="t-msg">TXN#8826 blocked — card •3370 velocity rule triggered</span></div>
+          <div class="t-line"><span class="t-time">14:22:25</span><span class="t-ok">[OK]</span><span class="t-msg">Monitoring active <span class="cursor"></span></span></div>
+        </div>
+      </div>
+
+      <!-- RISK PANEL -->
+      <div class="panel risk-panel">
+        <div class="panel-label">Current Risk Level</div>
+        <div class="panel-value" style="color:var(--accent);font-size:28px">LOW</div>
+        <div class="risk-meter">
+          <div class="risk-fill low"></div>
+        </div>
+        <div class="risk-labels">
+          <span>LOW</span><span>MEDIUM</span><span>HIGH</span><span>CRITICAL</span>
+        </div>
+        <div class="panel-sub" style="margin-top:16px">
+          <span class="delta-up">↓ 12%</span> from yesterday
+        </div>
+      </div>
+
+      <!-- BLOCKED TODAY -->
+      <div class="panel">
+        <div class="panel-label">Blocked Today</div>
+        <div class="panel-value" style="color:var(--danger)">247</div>
+        <div class="panel-sub">
+          <span class="delta-up">$1.4M</span> in fraud prevented
+        </div>
+      </div>
+
+      <!-- SCORE PANEL -->
+      <div class="panel score-panel">
+        <div class="panel-label">Model Confidence</div>
+
+        <div class="gauge-container">
+          <svg width="160" height="100" class="gauge" viewBox="0 0 160 100">
+            <path d="M 20 90 A 60 60 0 0 1 140 90" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12" stroke-linecap="round"/>
+            <path d="M 20 90 A 60 60 0 0 1 140 90" fill="none" stroke="url(#gaugeGrad)" stroke-width="12" stroke-linecap="round"
+              stroke-dasharray="188" stroke-dashoffset="14"/>
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="var(--accent)"/>
+                <stop offset="100%" stop-color="#00e6ff"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="score-number">
+            <span class="score-big">92</span>
+            <span class="score-label-sm">score</span>
+          </div>
+        </div>
+
+        <div class="score-list">
+          <div class="score-item">
+            <span class="score-name">Velocity</span>
+            <div class="score-bar-wrap"><div class="score-bar-fill" style="width:88%"></div></div>
+            <span class="score-pct">88%</span>
+          </div>
+          <div class="score-item">
+            <span class="score-name">Geo Match</span>
+            <div class="score-bar-wrap"><div class="score-bar-fill" style="width:96%"></div></div>
+            <span class="score-pct">96%</span>
+          </div>
+          <div class="score-item">
+            <span class="score-name">Behavior</span>
+            <div class="score-bar-wrap"><div class="score-bar-fill" style="width:91%"></div></div>
+            <span class="score-pct">91%</span>
+          </div>
+          <div class="score-item">
+            <span class="score-name">Device</span>
+            <div class="score-bar-wrap"><div class="score-bar-fill" style="width:78%"></div></div>
+            <span class="score-pct">78%</span>
+          </div>
+          <div class="score-item" style="border:none">
+            <span class="score-name">Network</span>
+            <div class="score-bar-wrap"><div class="score-bar-fill" style="width:94%"></div></div>
+            <span class="score-pct">94%</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RECENT TRANSACTIONS -->
+  <section class="section" style="padding-top:0">
+    <div class="section-header">
+      <span class="section-title">Recent Transactions</span>
+      <div class="section-line"></div>
+      <span class="section-tag">All Channels</span>
+    </div>
+    <div class="panel">
+      <div class="tx-table">
+        <div class="tx-row" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">
+          <span>Merchant / Time</span><span style="text-align:right">Amount</span><span>Status</span>
+        </div>
+        <div class="tx-row">
+          <div><div class="tx-info-name">Apple Store — NYC</div><div class="tx-info-time">Today, 14:21 EST</div></div>
+          <div class="tx-row-amount">$1,299.00</div>
+          <span class="status-pill pill-review">Review</span>
+        </div>
+        <div class="tx-row">
+          <div><div class="tx-info-name">Whole Foods Market</div><div class="tx-info-time">Today, 13:58 EST</div></div>
+          <div class="tx-row-amount">$84.37</div>
+          <span class="status-pill pill-ok">Approved</span>
+        </div>
+        <div class="tx-row">
+          <div><div class="tx-info-name">Unknown Transfer — Lagos</div><div class="tx-info-time">Today, 13:45 EST</div></div>
+          <div class="tx-row-amount">$4,200.00</div>
+          <span class="status-pill pill-block">Blocked</span>
+        </div>
+        <div class="tx-row">
+          <div><div class="tx-info-name">Spotify Premium</div><div class="tx-info-time">Today, 12:00 EST</div></div>
+          <div class="tx-row-amount">$9.99</div>
+          <span class="status-pill pill-ok">Approved</span>
+        </div>
+        <div class="tx-row">
+          <div><div class="tx-info-name">Gas Station — I-95</div><div class="tx-info-time">Today, 11:30 EST</div></div>
+          <div class="tx-row-amount">$67.44</div>
+          <span class="status-pill pill-ok">Approved</span>
+        </div>
+        <div class="tx-row" style="border:none">
+          <div><div class="tx-info-name">ATM Withdrawal — Unknown</div><div class="tx-info-time">Today, 10:15 EST</div></div>
+          <div class="tx-row-amount">$500.00</div>
+          <span class="status-pill pill-review">Review</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DETECTION METHODS -->
+  <section class="section" style="padding-top:0">
+    <div class="section-header">
+      <span class="section-title">How We Detect Fraud</span>
+      <div class="section-line"></div>
+      <span class="section-tag">4 Layers</span>
+    </div>
+    <div class="methods-grid">
+      <div class="method-card">
+        <div class="method-icon">⚡</div>
+        <div class="method-title">Real-Time Analysis</div>
+        <p class="method-desc">Every transaction is scored in under 50ms using gradient-boosted models trained on billions of data points.</p>
+      </div>
+      <div class="method-card">
+        <div class="method-icon">🌍</div>
+        <div class="method-title">Geo Intelligence</div>
+        <p class="method-desc">IP geolocation, device fingerprinting, and travel pattern analysis flag impossible location sequences instantly.</p>
+      </div>
+      <div class="method-card">
+        <div class="method-icon">📈</div>
+        <div class="method-title">Behavioral Modeling</div>
+        <p class="method-desc">Continuous learning from each cardholder's unique spending patterns detects even subtle anomalies over time.</p>
+      </div>
+      <div class="method-card">
+        <div class="method-icon">🔗</div>
+        <div class="method-title">Network Graph</div>
+        <p class="method-desc">Graph neural networks uncover fraud rings by mapping hidden relationships between accounts, merchants, and devices.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TRANSACTION ANALYZER SECTION
+════════════════════════════════════════════════════════════════════════════ -->
+<section id="analyze-section">
+
+  <!-- HEADER -->
+  <div class="analyzer-header">
+    <div>
+      <div class="analyzer-badge"><span class="badge-dot"></span> Real-Time Detection Engine</div>
+      <h2 class="analyzer-title">Transaction <span class="accent">Analyzer</span></h2>
+      <p class="analyzer-sub">Enter full transaction details and our multi-signal fraud engine will score the risk across 7 dimensions, visualize patterns, and deliver an instant verdict.</p>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-outline" onclick="fillDemoFraud()" style="border-color:rgba(255,59,92,0.3);color:var(--danger)">⚠ Load Fraud Demo</button>
+      <button class="btn-outline" onclick="fillDemoSafe()">✓ Load Safe Demo</button>
+    </div>
+  </div>
+
+  <!-- ANALYZER BODY -->
+  <div class="analyzer-layout">
+
+    <!-- ── LEFT: FORM ── -->
+    <div class="analyzer-form-col">
+
+      <div class="form-section-label">Transaction Identity</div>
+
+      <div class="form-row-2">
+        <div class="form-field">
+          <label>Transaction ID *</label>
+          <input type="text" id="az_txnId" placeholder="TXN-8831-XXXX" />
+        </div>
+        <div class="form-field">
+          <label>Transaction Date & Time *</label>
+          <input type="datetime-local" id="az_datetime" />
+        </div>
+      </div>
+
+      <div class="form-section-label">Card & Payment Info</div>
+
+      <div class="form-row-2">
+        <div class="form-field">
+          <label>Card Type *</label>
+          <div class="select-wrap">
+            <select id="az_cardType">
+              <option value="">— Select —</option>
+              <option value="visa">Visa</option>
+              <option value="mastercard">Mastercard</option>
+              <option value="amex">American Express</option>
+              <option value="discover">Discover</option>
+              <option value="rupay">RuPay</option>
+              <option value="unionpay">UnionPay</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Payment Method *</label>
+          <div class="select-wrap">
+            <select id="az_payMethod">
+              <option value="">— Select —</option>
+              <option value="credit">Credit Card</option>
+              <option value="debit">Debit Card</option>
+              <option value="online">Online / E-Commerce</option>
+              <option value="pos">POS Terminal</option>
+              <option value="atm">ATM Withdrawal</option>
+              <option value="contactless">Contactless / NFC</option>
+              <option value="wire">Wire Transfer</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-field">
+          <label>Transaction Amount *</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="az_amount" step="0.01" min="0" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Currency *</label>
+          <div class="select-wrap">
+            <select id="az_currency">
+              <option value="USD">USD — US Dollar</option>
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — British Pound</option>
+              <option value="INR">INR — Indian Rupee</option>
+              <option value="JPY">JPY — Japanese Yen</option>
+              <option value="CAD">CAD — Canadian Dollar</option>
+              <option value="AUD">AUD — Australian Dollar</option>
+              <option value="CNY">CNY — Chinese Yuan</option>
+              <option value="BRL">BRL — Brazilian Real</option>
+              <option value="OTHER">OTHER</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section-label">Merchant Details</div>
+
+      <div class="form-row-2">
+        <div class="form-field">
+          <label>Merchant ID</label>
+          <input type="text" id="az_merchantId" placeholder="MRC-0042" />
+        </div>
+        <div class="form-field">
+          <label>Merchant Name</label>
+          <input type="text" id="az_merchantName" placeholder="e.g. Amazon, Shell, ATM…" />
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label>Merchant Category *</label>
+        <div class="select-wrap">
+          <select id="az_merchantCat">
+            <option value="">— Select Category —</option>
+            <option value="grocery">Grocery / Supermarket</option>
+            <option value="electronics">Electronics / Tech</option>
+            <option value="fuel">Fuel / Gas Station</option>
+            <option value="travel">Travel / Airlines</option>
+            <option value="dining">Dining / Restaurants</option>
+            <option value="subscription">Subscription / SaaS</option>
+            <option value="atm">ATM / Cash Withdrawal</option>
+            <option value="wire">Wire Transfer / Remittance</option>
+            <option value="gambling">Gambling / Betting</option>
+            <option value="crypto">Cryptocurrency Exchange</option>
+            <option value="luxury">Luxury Goods / Jewelry</option>
+            <option value="healthcare">Healthcare / Pharmacy</option>
+            <option value="other">Other / Unknown</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-section-label">Additional Context</div>
+
+      <div class="form-row-2">
+        <div class="form-field">
+          <label>Country of Transaction</label>
+          <div class="select-wrap">
+            <select id="az_country">
+              <option value="US">United States</option>
+              <option value="IN">India</option>
+              <option value="GB">United Kingdom</option>
+              <option value="DE">Germany</option>
+              <option value="FR">France</option>
+              <option value="NG">Nigeria</option>
+              <option value="RU">Russia</option>
+              <option value="RO">Romania</option>
+              <option value="BR">Brazil</option>
+              <option value="CN">China</option>
+              <option value="JP">Japan</option>
+              <option value="AU">Australia</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Cardholder Country</label>
+          <div class="select-wrap">
+            <select id="az_holderCountry">
+              <option value="US">United States</option>
+              <option value="IN">India</option>
+              <option value="GB">United Kingdom</option>
+              <option value="DE">Germany</option>
+              <option value="FR">France</option>
+              <option value="NG">Nigeria</option>
+              <option value="RU">Russia</option>
+              <option value="RO">Romania</option>
+              <option value="BR">Brazil</option>
+              <option value="CN">China</option>
+              <option value="JP">Japan</option>
+              <option value="AU">Australia</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-field">
+          <label>Device Used</label>
+          <div class="select-wrap">
+            <select id="az_device">
+              <option value="mobile">Mobile / Smartphone</option>
+              <option value="desktop">Desktop / Laptop</option>
+              <option value="tablet">Tablet</option>
+              <option value="pos_terminal">POS Terminal</option>
+              <option value="atm_machine">ATM Machine</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Transaction Hour (0–23)</label>
+          <input type="number" id="az_hour" min="0" max="23" placeholder="e.g. 14" />
+          <span class="field-hint">Auto-fills from date/time above</span>
+        </div>
+      </div>
+
+      <!-- ACTION BUTTONS -->
+      <div class="analyzer-btn-row">
+        <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">⬡ Analyze Transaction</button>
+        <button class="btn-demo" onclick="fillDemoFraud()">⚡ Fraud Demo</button>
+        <button class="btn-reset-form" onclick="resetAnalyzer()">✕</button>
+      </div>
+
+    </div>
+
+    <!-- ── RIGHT: RESULTS ── -->
+    <div class="analyzer-result-col" id="analyzerResultCol">
+
+      <!-- Scanning overlay -->
+      <div class="scan-anim-overlay" id="scanOverlay">
+        <div class="scan-ring"></div>
+        <div class="scan-text">Analyzing Transaction…</div>
+        <div class="scan-bars">
+          <div class="scan-bar"></div><div class="scan-bar"></div>
+          <div class="scan-bar"></div><div class="scan-bar"></div>
+          <div class="scan-bar"></div>
+        </div>
+      </div>
+
+      <!-- Idle state -->
+      <div class="idle-placeholder" id="analyzerIdle">
+        <div class="idle-hex">⬡</div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--muted)">Awaiting Input</div>
+        <div class="idle-text">Fill in the transaction details on the left<br>and click <strong style="color:var(--accent)">Analyze Transaction</strong><br>to get a complete fraud verdict.</div>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted)">
+          <span>✓ 7 Risk Signals</span>
+          <span>✓ 4 Live Charts</span>
+          <span>✓ Instant Verdict</span>
+        </div>
+      </div>
+
+      <!-- RESULTS -->
+      <div id="analyzerResults">
+
+        <!-- 1. VERDICT -->
+        <div class="result-block" style="animation-delay:0s">
+          <div class="verdict-card" id="verdictCard">
+            <div class="verdict-icon-wrap" id="verdictIcon">⬡</div>
+            <div class="verdict-text-group">
+              <div class="verdict-main" id="verdictMain">—</div>
+              <div class="verdict-desc" id="verdictDesc">—</div>
+            </div>
+            <div class="verdict-score-wrap">
+              <span class="verdict-score-num" id="verdictScore">0</span>
+              <span class="verdict-score-label">Risk Score</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. RISK GAUGE -->
+        <div class="risk-gauge-block result-block" style="animation-delay:0.05s">
+          <div class="rgb-header">
+            <span class="rgb-title">Risk Level</span>
+            <span class="rgb-val" id="riskLevelText">—</span>
+          </div>
+          <div class="gauge-track">
+            <div class="gauge-fill" id="gaugeFill"></div>
+          </div>
+          <div class="gauge-ticks">
+            <span>Safe (0–30)</span><span>Moderate (31–60)</span><span>High Risk (61–100)</span>
+          </div>
+        </div>
+
+        <!-- 3. SIGNAL CARDS -->
+        <div class="signals-grid result-block" style="animation-delay:0.1s" id="signalGrid">
+          <!-- populated by JS -->
+        </div>
+
+        <!-- 4. FACTOR BARS -->
+        <div class="factors-section result-block" style="animation-delay:0.15s">
+          <div class="factors-title">Risk Factor Breakdown</div>
+          <div id="factorBars"></div>
+        </div>
+
+        <!-- 5. CHARTS -->
+        <div class="charts-section result-block" style="animation-delay:0.2s">
+          <div class="factors-title">Analysis Charts</div>
+
+          <div class="charts-grid-2">
+            <div class="chart-panel-az">
+              <div class="cp-title">Risk by Signal</div>
+              <div class="cp-sub">Score contribution per detection layer</div>
+              <canvas id="chartRadar" height="200"></canvas>
+            </div>
+            <div class="chart-panel-az">
+              <div class="cp-title">Fraud Probability</div>
+              <div class="cp-sub">Model confidence breakdown</div>
+              <canvas id="chartDoughnut" height="200"></canvas>
+            </div>
+          </div>
+
+          <div class="charts-grid-2">
+            <div class="chart-panel-az">
+              <div class="cp-title">Amount vs Category Risk</div>
+              <div class="cp-sub">How this amount compares to typical fraud amounts</div>
+              <canvas id="chartBar" height="180"></canvas>
+            </div>
+            <div class="chart-panel-az">
+              <div class="cp-title">Hourly Fraud Pattern</div>
+              <div class="cp-sub">Fraud frequency by hour — peak risk windows highlighted</div>
+              <canvas id="chartLine" height="180"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. TX SUMMARY TABLE -->
+        <div class="tx-detail-table result-block" style="animation-delay:0.25s">
+          <div class="factors-title">Transaction Summary</div>
+          <table>
+            <thead><tr><th>Field</th><th>Value</th><th>Status</th></tr></thead>
+            <tbody id="txSummaryBody"></tbody>
+          </table>
+        </div>
+
+        <!-- 7. RECOMMENDATIONS -->
+        <div class="recommendation-box result-block" style="animation-delay:0.3s">
+          <div class="rec-title">Recommended Actions</div>
+          <div id="recList"></div>
+        </div>
+
+        <!-- 8. SCAN HISTORY -->
+        <div class="history-mini result-block" style="animation-delay:0.35s">
+          <div class="factors-title">Recent Scans</div>
+          <div id="scanHistory"></div>
+        </div>
+
+      </div><!-- /analyzerResults -->
+    </div><!-- /result col -->
+  </div><!-- /analyzer-layout -->
+</section>
+
+<footer>
+  <span class="footer-logo">ShieldPay</span>
+  <span>© 2026 ShieldPay Inc. — SOC2 Type II Certified</span>
+  <span>PCI-DSS Level 1 Compliant</span>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     FRAUD ENGINE + CHART LOGIC
+════════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Scroll to analyzer ─────────────────────────────────────────────
+function openAnalyzer() {
+  setTimeout(() => {
+    document.getElementById('analyze-section').scrollIntoView({ behavior: 'smooth' });
+  }, 50);
+}
+
+// ── Demo data fill ─────────────────────────────────────────────────
+function fillDemoFraud() {
+  const now = new Date(); now.setHours(2, 17);
+  document.getElementById('az_txnId').value       = 'TXN-8831-FRAUD';
+  document.getElementById('az_datetime').value    = now.toISOString().slice(0,16);
+  document.getElementById('az_cardType').value    = 'visa';
+  document.getElementById('az_payMethod').value   = 'wire';
+  document.getElementById('az_amount').value      = '4200.00';
+  document.getElementById('az_currency').value    = 'USD';
+  document.getElementById('az_merchantId').value  = 'MRC-UNKNOWN';
+  document.getElementById('az_merchantName').value= 'Unknown Wire Transfer';
+  document.getElementById('az_merchantCat').value = 'wire';
+  document.getElementById('az_country').value     = 'NG';
+  document.getElementById('az_holderCountry').value='US';
+  document.getElementById('az_device').value      = 'unknown';
+  document.getElementById('az_hour').value        = '2';
+  openAnalyzer();
+}
+
+function fillDemoSafe() {
+  const now = new Date(); now.setHours(13, 45);
+  document.getElementById('az_txnId').value       = 'TXN-8820-SAFE';
+  document.getElementById('az_datetime').value    = now.toISOString().slice(0,16);
+  document.getElementById('az_cardType').value    = 'mastercard';
+  document.getElementById('az_payMethod').value   = 'pos';
+  document.getElementById('az_amount').value      = '84.37';
+  document.getElementById('az_currency').value    = 'USD';
+  document.getElementById('az_merchantId').value  = 'MRC-WFM-022';
+  document.getElementById('az_merchantName').value= 'Whole Foods Market';
+  document.getElementById('az_merchantCat').value = 'grocery';
+  document.getElementById('az_country').value     = 'US';
+  document.getElementById('az_holderCountry').value='US';
+  document.getElementById('az_device').value      = 'pos_terminal';
+  document.getElementById('az_hour').value        = '13';
+  openAnalyzer();
+}
+
+// auto-fill hour from datetime
+document.getElementById('az_datetime').addEventListener('change', function() {
+  if (this.value) {
+    document.getElementById('az_hour').value = new Date(this.value).getHours();
+  }
+});
+
+// ── Chart instances (destroy before recreating) ────────────────────
+let charts = {};
+function destroyCharts() {
+  Object.values(charts).forEach(c => { if(c) c.destroy(); });
+  charts = {};
+}
+
+// ── FRAUD ENGINE ──────────────────────────────────────────────────────────────
+const HIGH_RISK_COUNTRIES = ['NG','RU','RO','KP','IR','SY','MM','VE'];
+const HIGH_RISK_CATS = ['wire','gambling','crypto','atm'];
+const MED_RISK_CATS  = ['luxury','electronics','travel'];
+
+const FRAUD_HOUR_RISK = [85,90,92,95,88,70,40,20,15,12,10,12,18,14,16,18,20,22,25,30,40,55,68,78];
+const CAT_AVG_FRAUD_AMT = {
+  grocery:80, fuel:70, dining:60, subscription:20, healthcare:90,
+  electronics:500, luxury:1200, travel:800, atm:400,
+  wire:2000, gambling:600, crypto:1500, other:200
+};
+
+function computeFraudSignals(d) {
+  const signals = {};
+
+  // 1. Geo mismatch
+  const geoMismatch = d.country !== d.holderCountry;
+  const highRiskGeo  = HIGH_RISK_COUNTRIES.includes(d.country);
+  signals.geo = {
+    label: 'Geo / Location',
+    icon: '🌍',
+    score: geoMismatch ? (highRiskGeo ? 95 : 60) : (highRiskGeo ? 70 : 5),
+    detail: geoMismatch
+      ? (highRiskGeo ? `Critical: ${d.country} is high-risk & differs from cardholder's ${d.holderCountry}` : `Mismatch: card from ${d.holderCountry}, used in ${d.country}`)
+      : `OK: Transaction in cardholder's home country (${d.country})`,
+    status: geoMismatch ? (highRiskGeo ? 'bad' : 'warn') : 'ok'
+  };
+
+  // 2. Amount anomaly
+  const avgFraud = CAT_AVG_FRAUD_AMT[d.merchantCat] || 300;
+  const amtRatio = d.amount / avgFraud;
+  let amtScore = 0;
+  if (d.amount > 5000) amtScore = 90;
+  else if (d.amount > 2000) amtScore = 75;
+  else if (d.amount > 1000) amtScore = 55;
+  else if (d.amount > 500) amtScore = 35;
+  else if (d.amount > 200) amtScore = 20;
+  else amtScore = 8;
+  if (amtRatio > 3) amtScore = Math.min(amtScore + 20, 100);
+  signals.amount = {
+    label: 'Amount Anomaly',
+    icon: '💰',
+    score: amtScore,
+    detail: `$${d.amount.toFixed(2)} — ${amtRatio > 2 ? amtRatio.toFixed(1)+'x above category avg ($'+avgFraud+')' : 'within normal range for ' + d.merchantCat}`,
+    status: amtScore >= 65 ? 'bad' : amtScore >= 35 ? 'warn' : 'ok'
+  };
+
+  // 3. Time of day
+  const hour = parseInt(d.hour) || 12;
+  const timeScore = FRAUD_HOUR_RISK[hour] || 20;
+  signals.time = {
+    label: 'Time of Day',
+    icon: '🕐',
+    score: timeScore,
+    detail: hour >= 0 && hour <= 5
+      ? `Late night (${hour}:00) — peak fraud window`
+      : hour >= 22
+        ? `Late evening (${hour}:00) — elevated risk`
+        : `Daytime (${hour}:00) — normal operating hours`,
+    status: timeScore >= 65 ? 'bad' : timeScore >= 35 ? 'warn' : 'ok'
+  };
+
+  // 4. Merchant category
+  const catScore = HIGH_RISK_CATS.includes(d.merchantCat) ? 85 : MED_RISK_CATS.includes(d.merchantCat) ? 45 : 12;
+  signals.merchant = {
+    label: 'Merchant Risk',
+    icon: '🏪',
+    score: catScore,
+    detail: HIGH_RISK_CATS.includes(d.merchantCat)
+      ? `High-risk category: ${d.merchantCat} — frequently used in fraud`
+      : MED_RISK_CATS.includes(d.merchantCat)
+        ? `Moderate risk: ${d.merchantCat} — watch for unusual patterns`
+        : `Low-risk category: ${d.merchantCat}`,
+    status: catScore >= 65 ? 'bad' : catScore >= 35 ? 'warn' : 'ok'
+  };
+
+  // 5. Payment method
+  const methodScores = { wire:80, atm:55, online:35, credit:20, debit:15, pos:8, contactless:10 };
+  const methodScore = methodScores[d.payMethod] || 20;
+  signals.method = {
+    label: 'Payment Method',
+    icon: '💳',
+    score: methodScore,
+    detail: d.payMethod === 'wire'
+      ? 'Wire transfers are highest-risk for fraud'
+      : d.payMethod === 'atm'
+        ? 'ATM withdrawals — verify card not skimmed'
+        : d.payMethod === 'online'
+          ? 'Online payment — verify 3DS authentication'
+          : `${d.payMethod.toUpperCase()} — lower risk channel`,
+    status: methodScore >= 65 ? 'bad' : methodScore >= 35 ? 'warn' : 'ok'
+  };
+
+  // 6. Currency mismatch
+  const COUNTRY_CURRENCY = {US:'USD',IN:'INR',GB:'GBP',DE:'EUR',FR:'EUR',NG:'NGN',RU:'RUB',RO:'RON',BR:'BRL',CN:'CNY',JP:'JPY',AU:'AUD'};
+  const expectedCurrency = COUNTRY_CURRENCY[d.country] || null;
+  const currencyMismatch = expectedCurrency && d.currency !== expectedCurrency && !['USD','EUR'].includes(d.currency);
+  const currScore = currencyMismatch ? 55 : 8;
+  signals.currency = {
+    label: 'Currency Check',
+    icon: '💱',
+    score: currScore,
+    detail: currencyMismatch
+      ? `Mismatch: ${d.currency} used in ${d.country} (expected ${expectedCurrency})`
+      : `${d.currency} is consistent with transaction location`,
+    status: currScore >= 65 ? 'bad' : currScore >= 35 ? 'warn' : 'ok'
+  };
+
+  // 7. Device risk
+  const devScores = { unknown:75, atm_machine:40, pos_terminal:10, mobile:15, desktop:12, tablet:14 };
+  const devScore = devScores[d.device] || 15;
+  signals.device = {
+    label: 'Device Risk',
+    icon: '📱',
+    score: devScore,
+    detail: d.device === 'unknown'
+      ? 'Unknown device — cannot verify authenticity'
+      : d.device === 'atm_machine'
+        ? 'ATM device — check for skimmer risk'
+        : `${d.device.replace('_',' ')} — device appears legitimate`,
+    status: devScore >= 65 ? 'bad' : devScore >= 35 ? 'warn' : 'ok'
+  };
+
+  return signals;
+}
+
+function computeOverallScore(signals) {
+  const weights = { geo:0.25, amount:0.22, time:0.12, merchant:0.16, method:0.10, currency:0.08, device:0.07 };
+  let score = 0;
+  Object.keys(weights).forEach(k => {
+    score += (signals[k]?.score || 0) * weights[k];
+  });
+  return Math.round(score);
+}
+
+// ── SCAN HISTORY STORE ─────────────────────────────────────────────
+const scanHistory = [];
+
+// ── MAIN ANALYSIS RUNNER ──────────────────────────────────────────────────────
+function runAnalysis() {
+  const d = {
+    txnId:       document.getElementById('az_txnId').value.trim() || 'TXN-UNKNOWN',
+    datetime:    document.getElementById('az_datetime').value,
+    cardType:    document.getElementById('az_cardType').value,
+    payMethod:   document.getElementById('az_payMethod').value,
+    amount:      parseFloat(document.getElementById('az_amount').value) || 0,
+    currency:    document.getElementById('az_currency').value || 'USD',
+    merchantId:  document.getElementById('az_merchantId').value.trim() || '—',
+    merchantName:document.getElementById('az_merchantName').value.trim() || 'Unknown',
+    merchantCat: document.getElementById('az_merchantCat').value || 'other',
+    country:     document.getElementById('az_country').value || 'US',
+    holderCountry:document.getElementById('az_holderCountry').value || 'US',
+    device:      document.getElementById('az_device').value || 'unknown',
+    hour:        document.getElementById('az_hour').value || '12',
+  };
+
+  // Validation
+  if (!d.cardType || !d.payMethod || !d.amount || !d.merchantCat) {
+    alert('Please fill in all required fields (*)');
+    return;
+  }
+
+  // Show scanning overlay
+  const overlay = document.getElementById('scanOverlay');
+  overlay.classList.add('active');
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('analyzerIdle').style.display = 'none';
+  document.getElementById('analyzerResults').style.display = 'none';
+
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    document.getElementById('analyzeBtn').disabled = false;
+
+    const signals = computeFraudSignals(d);
+    const score   = computeOverallScore(signals);
+    const verdict = score >= 65 ? 'fraud' : score >= 35 ? 'review' : 'safe';
+
+    renderResults(d, signals, score, verdict);
+
+    // Save history
+    scanHistory.unshift({ txnId: d.txnId, merchant: d.merchantName, amount: d.amount, score, verdict, time: new Date().toLocaleTimeString() });
+    if (scanHistory.length > 6) scanHistory.pop();
+    renderHistory();
+  }, 1400);
+}
+
+// ── RENDER RESULTS ─────────────────────────────────────────────────
+function renderResults(d, signals, score, verdict) {
+  document.getElementById('analyzerResults').style.display = 'block';
+
+  // — Verdict card —
+  const vc = document.getElementById('verdictCard');
+  vc.className = 'verdict-card ' + verdict;
+  const icons  = { fraud: '⚠', review: '⚑', safe: '✓' };
+  const labels = { fraud: 'FRAUD DETECTED', review: 'REVIEW REQUIRED', safe: 'TRANSACTION SAFE' };
+  const descs  = {
+    fraud:  'Multiple high-risk signals detected. This transaction shows strong fraud characteristics.',
+    review: 'Moderate risk signals present. Manual analyst review recommended before processing.',
+    safe:   'Transaction appears legitimate. Risk signals are within normal bounds.'
+  };
+  document.getElementById('verdictIcon').textContent = icons[verdict];
+  document.getElementById('verdictMain').textContent = labels[verdict];
+  document.getElementById('verdictMain').className   = 'verdict-main ' + verdict;
+  document.getElementById('verdictDesc').textContent = descs[verdict];
+  const scoreEl = document.getElementById('verdictScore');
+  scoreEl.textContent = score;
+  scoreEl.style.color = verdict === 'fraud' ? 'var(--danger)' : verdict === 'review' ? 'var(--warn)' : 'var(--accent)';
+
+  // — Gauge —
+  const fill = document.getElementById('gaugeFill');
+  fill.className = 'gauge-fill ' + verdict;
+  setTimeout(() => { fill.style.width = score + '%'; }, 100);
+  const lvls = { safe: 'SAFE — No Action Required', review: 'MODERATE — Manual Review', fraud: 'HIGH RISK — Block Recommended' };
+  document.getElementById('riskLevelText').textContent = lvls[verdict];
+  document.getElementById('riskLevelText').style.color = verdict === 'fraud' ? 'var(--danger)' : verdict === 'review' ? 'var(--warn)' : 'var(--accent)';
+
+  // — Signal Cards —
+  const sg = document.getElementById('signalGrid');
+  sg.innerHTML = '';
+  Object.values(signals).forEach(s => {
+    sg.innerHTML += `
+      <div class="signal-card ${s.status}">
+        <span class="sc-icon">${s.icon}</span>
+        <div class="sc-label">${s.label}</div>
+        <div class="sc-value ${s.status}">${s.score}<span style="font-size:11px;opacity:0.6">/100</span></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.4">${s.detail}</div>
+      </div>`;
+  });
+
+  // — Factor Bars —
+  const fb = document.getElementById('factorBars');
+  fb.innerHTML = '';
+  const sorted = Object.values(signals).sort((a,b) => b.score - a.score);
+  sorted.forEach(s => {
+    const cls = s.score >= 65 ? 'high' : s.score >= 35 ? 'med' : 'low';
+    fb.innerHTML += `
+      <div class="factor-row">
+        <span class="factor-name">${s.label}</span>
+        <div class="factor-bar-wrap"><div class="factor-bar ${cls}" data-w="${s.score}"></div></div>
+        <span class="factor-pct">${s.score}</span>
+      </div>`;
+  });
+  setTimeout(() => {
+    fb.querySelectorAll('.factor-bar').forEach(b => { b.style.width = b.dataset.w + '%'; });
+  }, 100);
+
+  // — Charts —
+  destroyCharts();
+  renderCharts(d, signals, score, verdict);
+
+  // — TX Summary Table —
+  const cardLabels = { visa:'Visa', mastercard:'Mastercard', amex:'American Express', discover:'Discover', rupay:'RuPay', unionpay:'UnionPay', other:'Other' };
+  const methodLabels = { credit:'Credit Card', debit:'Debit Card', online:'Online / E-Commerce', pos:'POS Terminal', atm:'ATM Withdrawal', contactless:'Contactless / NFC', wire:'Wire Transfer' };
+  const rows = [
+    ['Transaction ID',   d.txnId,      'ok'],
+    ['Date & Time',      d.datetime ? new Date(d.datetime).toLocaleString() : '—', 'ok'],
+    ['Card Type',        cardLabels[d.cardType] || d.cardType, 'ok'],
+    ['Payment Method',   methodLabels[d.payMethod] || d.payMethod, d.payMethod==='wire'?'bad':'ok'],
+    ['Amount',           '$' + d.amount.toFixed(2) + ' ' + d.currency, score>65?'bad':score>35?'warn':'ok'],
+    ['Merchant',         d.merchantName + ' (' + d.merchantId + ')', 'ok'],
+    ['Merchant Category',d.merchantCat, HIGH_RISK_CATS.includes(d.merchantCat)?'bad':MED_RISK_CATS.includes(d.merchantCat)?'warn':'ok'],
+    ['Transaction Country', d.country,  HIGH_RISK_COUNTRIES.includes(d.country)?'bad':d.country!==d.holderCountry?'warn':'ok'],
+    ['Cardholder Country',  d.holderCountry, 'ok'],
+    ['Device',           d.device.replace('_',' '), d.device==='unknown'?'warn':'ok'],
+    ['Overall Risk Score', score + ' / 100', verdict],
+  ];
+  const stColors = { ok:'var(--accent)', warn:'var(--warn)', bad:'var(--danger)', fraud:'var(--danger)', review:'var(--warn)', safe:'var(--accent)' };
+  const stLabels = { ok:'✓ OK', warn:'⚑ Review', bad:'✕ High Risk', fraud:'✕ Blocked', review:'⚑ Review', safe:'✓ Safe' };
+  document.getElementById('txSummaryBody').innerHTML = rows.map(([k,v,s]) => `
+    <tr>
+      <td class="td-key">${k}</td>
+      <td class="td-val">${v}</td>
+      <td><span class="status-pill" style="color:${stColors[s]||'var(--muted)'};border-color:${stColors[s]||'var(--border)'}20;background:${stColors[s]||'transparent'}15;padding:3px 8px;font-size:9px;text-transform:uppercase;letter-spacing:0.08em">${stLabels[s]||'—'}</span></td>
+    </tr>`).join('');
+
+  // — Recommendations —
+  const recs = buildRecommendations(verdict, signals, d);
+  document.getElementById('recList').innerHTML = recs.map(r =>
+    `<div class="rec-item"><span class="rec-icon">${r.icon}</span><span>${r.text}</span></div>`
+  ).join('');
+
+  // Scroll into view
+  document.getElementById('analyzerResults').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function buildRecommendations(verdict, signals, d) {
+  const recs = [];
+  if (verdict === 'fraud') {
+    recs.push({ icon:'🚫', text:'Block this transaction immediately and freeze the card.' });
+    recs.push({ icon:'📞', text:'Contact cardholder at their registered number to verify.' });
+    recs.push({ icon:'🔍', text:'Initiate chargeback dispute process if already processed.' });
+    recs.push({ icon:'📋', text:'File a SAR (Suspicious Activity Report) as required by compliance.' });
+  } else if (verdict === 'review') {
+    recs.push({ icon:'⚑', text:'Hold transaction and escalate to fraud analyst queue.' });
+    recs.push({ icon:'📱', text:'Send real-time SMS/push alert to cardholder for confirmation.' });
+    recs.push({ icon:'🔐', text:'Require step-up authentication (OTP / biometric) before approving.' });
+  } else {
+    recs.push({ icon:'✓', text:'Transaction appears legitimate. Safe to approve.' });
+    recs.push({ icon:'📊', text:'Continue monitoring this card for pattern changes.' });
+  }
+  if (signals.geo.status === 'bad') recs.push({ icon:'🌍', text:`Enable travel alerts for card used in ${d.country}.` });
+  if (signals.amount.status === 'bad') recs.push({ icon:'💰', text:'Consider adding a temporary spending limit to this card.' });
+  return recs;
+}
+
+// ── CHARTS ──────────────────────────────────────────────────────────
+function renderCharts(d, signals, score, verdict) {
+  const C = { accent:'#00c896', danger:'#ff3b5c', warn:'#ffb800', muted:'#5a7a6e', surface:'#0a1520', text:'#e8f4f0' };
+  const defaults = {
+    color: C.text,
+    font: { family: "'DM Mono', monospace", size: 10 }
+  };
+  Chart.defaults.color = C.text;
+  Chart.defaults.font  = defaults.font;
+
+  const signalEntries = Object.values(signals);
+
+  // 1. RADAR
+  const radarCtx = document.getElementById('chartRadar').getContext('2d');
+  charts.radar = new Chart(radarCtx, {
+    type: 'radar',
+    data: {
+      labels: signalEntries.map(s => s.label.split(' ').join('\n')),
+      datasets: [{
+        label: 'Risk Score',
+        data: signalEntries.map(s => s.score),
+        borderColor: verdict==='fraud' ? C.danger : verdict==='review' ? C.warn : C.accent,
+        backgroundColor: verdict==='fraud' ? 'rgba(255,59,92,0.15)' : verdict==='review' ? 'rgba(255,184,0,0.12)' : 'rgba(0,200,150,0.12)',
+        borderWidth: 2,
+        pointBackgroundColor: verdict==='fraud' ? C.danger : verdict==='review' ? C.warn : C.accent,
+        pointRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        r: {
+          min: 0, max: 100,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          angleLines: { color: 'rgba(255,255,255,0.06)' },
+          pointLabels: { color: C.muted, font: { size: 9 } },
+          ticks: { color: C.muted, font: { size: 8 }, stepSize: 25, backdropColor: 'transparent' }
+        }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // 2. DOUGHNUT
+  const dCtx = document.getElementById('chartDoughnut').getContext('2d');
+  const fraudPct = score;
+  const safePct  = 100 - score;
+  charts.doughnut = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Fraud Probability', 'Safe Probability'],
+      datasets: [{
+        data: [fraudPct, safePct],
+        backgroundColor: [
+          verdict==='fraud' ? 'rgba(255,59,92,0.8)' : verdict==='review' ? 'rgba(255,184,0,0.7)' : 'rgba(0,200,150,0.2)',
+          'rgba(0,200,150,0.15)'
+        ],
+        borderColor: [
+          verdict==='fraud' ? C.danger : verdict==='review' ? C.warn : C.accent,
+          'rgba(255,255,255,0.05)'
+        ],
+        borderWidth: 2,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '65%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: C.muted, font: { size: 9 }, padding: 12, boxWidth: 10 }
+        },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}%` }
+        }
+      }
+    }
+  });
+
+  // 3. BAR — Amount vs Typical fraud by category
+  const categories = ['grocery','dining','fuel','electronics','travel','atm','wire','crypto','gambling'];
+  const avgAmts    = [80,60,70,500,800,400,2000,1500,600];
+  const catIdx     = categories.indexOf(d.merchantCat);
+  const barColors  = categories.map((c,i) => {
+    if (c === d.merchantCat) return verdict==='fraud'?C.danger:verdict==='review'?C.warn:C.accent;
+    return 'rgba(255,255,255,0.08)';
+  });
+  const borderColors = categories.map(c => c === d.merchantCat ? (verdict==='fraud'?C.danger:verdict==='review'?C.warn:C.accent) : 'rgba(255,255,255,0.06)');
+
+  const barDatasets = [
+    {
+      label: 'Avg Fraud Amount',
+      data: avgAmts,
+      backgroundColor: barColors,
+      borderColor: borderColors,
+      borderWidth: 1,
+    }
+  ];
+  if (catIdx !== -1) {
+    const txAmtData = new Array(categories.length).fill(null);
+    txAmtData[catIdx] = d.amount;
+    barDatasets.push({
+      label: 'This Transaction',
+      data: txAmtData,
+      backgroundColor: 'rgba(255,255,255,0.6)',
+      borderColor: 'white',
+      borderWidth: 2,
+      borderRadius: 2
+    });
+  }
+
+  const barCtx = document.getElementById('chartBar').getContext('2d');
+  charts.bar = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: categories.map(c => c.charAt(0).toUpperCase() + c.slice(1)),
+      datasets: barDatasets
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position:'bottom', labels:{ color:C.muted, font:{size:9}, padding:10, boxWidth:10 }},
+        tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.y?.toFixed(2) ?? 0}` }}
+      },
+      scales: {
+        x: { grid:{ color:'rgba(255,255,255,0.03)' }, ticks:{ color:C.muted, font:{size:8} }},
+        y: { grid:{ color:'rgba(255,255,255,0.03)' }, ticks:{ color:C.muted, font:{size:9}, callback: v => '$'+v }}
+      }
+    }
+  });
+
+  // 4. LINE — Hourly fraud pattern
+  const hours = Array.from({length:24},(_,i)=> i + ':00');
+  const lineCtx = document.getElementById('chartLine').getContext('2d');
+  const txHour  = parseInt(d.hour) || 12;
+  const ptColors = FRAUD_HOUR_RISK.map((_,i) => i === txHour ? (verdict==='fraud'?C.danger:C.warn) : 'transparent');
+  const ptRadius = FRAUD_HOUR_RISK.map((_,i) => i === txHour ? 6 : 0);
+
+  charts.line = new Chart(lineCtx, {
+    type: 'line',
+    data: {
+      labels: hours,
+      datasets: [{
+        label: 'Fraud Risk %',
+        data: FRAUD_HOUR_RISK,
+        borderColor: C.accent,
+        backgroundColor: 'rgba(0,200,150,0.08)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: ptColors,
+        pointRadius: ptRadius,
+        pointBorderColor: verdict==='fraud'?C.danger:C.warn,
+        pointBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => ` Risk: ${ctx.parsed.y}%` }}
+      },
+      scales: {
+        x: { grid:{ color:'rgba(255,255,255,0.03)' }, ticks:{ color:C.muted, font:{size:7}, maxTicksLimit:8 }},
+        y: { grid:{ color:'rgba(255,255,255,0.03)' }, ticks:{ color:C.muted, font:{size:9}, callback: v => v+'%' }, min:0, max:100 }
+      }
+    }
+  });
+}
+
+// ── HISTORY ────────────────────────────────────────────────────────
+function renderHistory() {
+  const el = document.getElementById('scanHistory');
+  if (!scanHistory.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px 0">No scans yet.</div>'; return; }
+  el.innerHTML = scanHistory.map(h => {
+    const col = h.verdict==='fraud'?'var(--danger)':h.verdict==='review'?'var(--warn)':'var(--accent)';
+    const icon= h.verdict==='fraud'?'⚠':h.verdict==='review'?'⚑':'✓';
+    return `<div class="history-row">
+      <span class="hr-id">${h.txnId.slice(0,12)}</span>
+      <div class="hr-info"><div class="hr-merchant">${h.merchant}</div><div class="hr-amt">$${h.amount.toFixed(2)}</div></div>
+      <span class="status-pill" style="color:${col};border:1px solid ${col}22;background:${col}11;padding:2px 7px;font-size:9px">${icon} ${h.verdict.toUpperCase()}</span>
+      <span class="hr-time">${h.time}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── RESET ──────────────────────────────────────────────────────────
+function resetAnalyzer() {
+  document.querySelectorAll('#analyze-section input, #analyze-section select').forEach(el => {
+    el.value = el.tagName === 'SELECT' ? el.options[0]?.value || '' : '';
+  });
+  document.getElementById('analyzerResults').style.display = 'none';
+  document.getElementById('analyzerIdle').style.display = 'flex';
+  destroyCharts();
+}
+
+// Init history render
+renderHistory();
+</script>
+<script>
+async function predictFraud() {
+    const features = [
+        parseFloat(document.getElementById("f1").value),
+        parseFloat(document.getElementById("f2").value),
+        // add all features here in correct order
+    ];
+
+    const response = await fetch("/predict", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ features: features })
+    });
+
+    const result = await response.json();
+    alert(result.prediction === 1 ? "Fraud Detected" : "Normal Transaction");
+}
+function sendToModel() {
+
+  const payload = {
+    Time: document.getElementById("Time").value,
+    V1: document.getElementById("V1").value,
+    V2: document.getElementById("V2").value,
+    V3: document.getElementById("V3").value,
+    Amount: document.getElementById("Amount").value
+  };
+
+  fetch("/predict", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(res => res.json())
+  .then(data => {
+    alert(data.prediction === 1 ? "Fraud" : "Normal");
+  });
+}
+</script>
